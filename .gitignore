@@ -1,0 +1,7 @@
+node_modules
+dist
+.DS_Store
+*.local
+dexie-cloud.json
+dexie-cloud.key
+tsconfig.tsbuildinfo
