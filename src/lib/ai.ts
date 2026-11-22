@@ -297,7 +297,7 @@ export async function searchWebSources(prompt: string, signal?: AbortSignal): Pr
       if (h && [...googleDomains].some((d) => h === d || h.endsWith('.' + d))) {
         const line = (text.split('\n') as string[]).find((l: string) => l.includes(url)) ?? '';
         // Ligne « - Titre — Média — URL — apport » : titre = 1er morceau, le reste en note.
-        const parts = line.replace(url, '').replace(/^[-*•\d.)\s]+/, '').split(/\s+[—–]\s+|\s+-\s+/).map((x: string) => x.replace(/^[\s*_"«]+|[\s*_"»:]+$/g, '').trim()).filter(Boolean);
+        const parts = line.replace(url, '').replace(/^[-*•\d.)\s]+/, '').split(/\s+—\s+/).map((x: string) => x.replace(/^[\s*_"«—–-]+|[\s*_"»:—–-]+$/g, '').trim()).filter(Boolean);
         const title = (parts[0] || h).slice(0, 140);
         const note = parts.slice(1).join(' · ').slice(0, 220);
         written.push({ url, title, viaGoogle: true, note: note || undefined });
