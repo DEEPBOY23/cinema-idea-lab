@@ -50,7 +50,30 @@ function CloudInteraction() {
 export default function App() {
   const { path, query } = useRoute();
   const [more, setMore] = useState(false);
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+    // Vérifie les nouvelles versions à l'ouverture, au retour sur l'app et toutes les 30 min.
+    onRegisteredSW(_url, reg) {
+      if (!reg) return;
+      const check = () => { if (navigator.onLine) reg.update().catch(() => {}); };
+      check();
+      setInterval(check, 30 * 60_000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    },
+  });
+  // Mise à jour automatique dès que tu n'es pas en train d'écrire (sinon, bandeau « Mettre à jour »).
+  useEffect(() => {
+    if (!needRefresh) return;
+    const tryApply = () => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if (!typing) updateServiceWorker(true);
+    };
+    const t = setTimeout(tryApply, 1500);
+    // Laisser le temps au champ quitté d'enregistrer avant de recharger.
+    const onOut = () => setTimeout(tryApply, 1000);
+    document.addEventListener('focusout', onOut);
+    return () => { clearTimeout(t); document.removeEventListener('focusout', onOut); };
+  }, [needRefresh]);
 
   useEffect(() => {
     // Stockage persistant (évite l'éviction par le navigateur) + sauvegarde auto locale quotidienne
