@@ -12,6 +12,59 @@ import { extractLinks } from '../lib/text';
 import { createSource } from '../lib/actions';
 import { useMemory, runSuggest, FormatSuggestionsPanel } from '../components/assist';
 import { useAIProvider } from '../components/ui';
+import { WebSourceFinder } from '../components/webSources';
+import { proposeAngles, listMissing, proposeStructure, strengthenWeak, applyTip, type WeakTip } from '../lib/devAssist';
+import type { PromptCtx } from '../lib/prompts';
+
+/** Bouton « l'assistant le fait » avec annulation et message de résultat. */
+function AssistAction({ label, run }: { label: string; run: (signal: AbortSignal) => Promise<string> }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [ctl, setCtl] = useState<AbortController | null>(null);
+  return (
+    <div className="card" style={{ borderColor: 'var(--accent)' }}>
+      <div className="row wrap">
+        {busy ? <button className="btn" onClick={() => ctl?.abort()}>L’assistant travaille… (annuler)</button>
+          : <button className="btn primary" onClick={async () => {
+            const c = new AbortController(); setCtl(c); setBusy(true); setMsg('');
+            try { setMsg(await run(c.signal)); } catch (e: any) { setMsg(e?.name === 'AbortError' ? 'Annulé.' : (e?.message ?? String(e))); }
+            setBusy(false);
+          }}>✦ {label}</button>}
+        <span className="tiny muted">par l’assistant, directement dans l’app</span>
+      </div>
+      {msg && <p className="small" style={{ margin: '8px 0 0' }}>{msg}</p>}
+    </div>
+  );
+}
+
+/** Copier-coller : affiché d'office sans IA, replié quand l'assistant est branché. */
+function Fallback({ aiOn, children }: { aiOn: boolean; children: React.ReactNode }) {
+  if (!aiOn) return <>{children}</>;
+  return <details><summary className="small muted">Ou passer par le copier-coller (ChatGPT, Claude…)</summary>{children}</details>;
+}
+
+function WeakStep({ idea, ctx, aiOn, onNext }: { idea: Idea; ctx: PromptCtx; aiOn: boolean; onNext: () => void }) {
+  const [res, setRes] = useState<{ verdict: string; tips: WeakTip[] } | null>(null);
+  const [applied, setApplied] = useState<Record<number, boolean>>({});
+  return (
+    <div className="stack">
+      <p className="small">Marque les temps forts faibles dans la fiche (bouton « faible »), ou laisse l’assistant les repérer. Pas de réécriture complète.</p>
+      {aiOn && <AssistAction label="Renforcer les parties faibles" run={async (sig) => { const r = await strengthenWeak(idea, ctx, sig); setRes(r); setApplied({}); return r.verdict || (r.tips.length ? '' : 'Aucun vrai point faible repéré.'); }} />}
+      {res?.tips.map((t, i) => (
+        <div key={i} className="card">
+          <b className="small">{t.beat}</b>
+          <p className="small muted" style={{ margin: '4px 0' }}>{t.problem}</p>
+          <p className="small" style={{ margin: '4px 0' }}>Piste : {t.suggestion}</p>
+          {t.beatId ? (applied[i] ? <span className="small muted">Ajoutée au temps fort ✓</span>
+            : <button className="btn sm" onClick={async () => { await applyTip(idea, t); setApplied({ ...applied, [i]: true }); }}>Ajouter cette piste au temps fort</button>)
+            : <span className="tiny muted">Temps fort non retrouvé dans ta structure : à reporter à la main.</span>}
+        </div>
+      ))}
+      <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'weak' })} /></Fallback>
+      <button className="btn" onClick={onNext}>Continuer →</button>
+    </div>
+  );
+}
 
 const MODES: WorkshopMode[] = ['inspiration', 'development', 'diagnostic', 'writing', 'challenge'];
 
@@ -53,6 +106,7 @@ function Inspiration({ idea }: { idea?: Idea }) {
   return (
     <div className="stack">
       <label className="field"><span className="field-label">Film, série, technique ou format à explorer</span><input value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+      <WebSourceFinder subject={subject} idea={idea} />
       <PromptBox mode="inspiration" ideaId={idea?.id} input={subject} prompt={buildPrompt('inspiration', ctx, '', { subject })} importLabel="Enregistrer et importer les liens"
         onImport={async (r) => {
           const existing = new Set(ctx.sources.map((s) => s.url));
@@ -112,41 +166,35 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
       )}
       {step === 1 && (
         <div className="stack">
-          <PromptBox mode="development" ideaId={idea.id} input={idea.observation} prompt={buildPrompt('development', ctx, idea.observation)} importLabel="Importer comme angles" onImport={importAngles} />
+          {aiOn && <AssistAction label="Proposer 3 angles" run={async (sig) => { const r = await proposeAngles(idea, ctx, sig); setStep(2); return `${r.count} angles ajoutés.${r.understood ? ` Ce que l’assistant a compris : « ${r.understood} »` : ''}`; }} />}
+          <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} input={idea.observation} prompt={buildPrompt('development', ctx, idea.observation)} importLabel="Importer comme angles" onImport={importAngles} /></Fallback>
           <button className="btn ghost sm" onClick={() => setStep(2)}>J’écris mes angles moi-même →</button>
         </div>
       )}
       {step === 2 && <AngleChooser idea={idea} onDone={() => setStep(3)} />}
       {step === 3 && (
         <div className="stack">
+          {aiOn && <AssistAction label="Lister ce qui manque" run={async (sig) => { const n = await listMissing(idea, ctx, sig); return n ? `${n} point${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} ci-dessous.` : 'Rien d’important ne manque selon l’assistant.'; }} />}
           <label className="field"><span className="field-label">Informations manquantes</span>
-            <textarea rows={4} defaultValue={idea.missingInfo} onBlur={(e) => e.target.value !== idea.missingInfo && updateIdea(idea.id, { missingInfo: e.target.value })} /></label>
-          <details><summary className="small">Demander à l’assistant ce qui manque</summary>
-            <PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'missing' })} importLabel="Ajouter aux infos manquantes"
-              onImport={(r) => updateIdea(idea.id, { missingInfo: [idea.missingInfo, parseList(r).map((x) => `- ${x}`).join('\n')].filter(Boolean).join('\n') })} />
-          </details>
-          <a className="btn sm ghost" href={`#/docs?idea=${idea.id}&tab=search`}>Aller chercher des sources</a>
+            <textarea key={idea.missingInfo} rows={5} defaultValue={idea.missingInfo} onBlur={(e) => e.target.value !== idea.missingInfo && updateIdea(idea.id, { missingInfo: e.target.value })} /></label>
+          <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'missing' })} importLabel="Ajouter aux infos manquantes"
+              onImport={(r) => updateIdea(idea.id, { missingInfo: [idea.missingInfo, parseList(r).map((x) => `- ${x}`).join('\n')].filter(Boolean).join('\n') })} /></Fallback>
+          <WebSourceFinder subject={idea.angle || idea.title} idea={idea} />
           <button className="btn" onClick={() => setStep(4)}>Continuer →</button>
         </div>
       )}
       {step === 4 && (
         <div className="stack">
-          <p className="small">Construis la structure dans la fiche (tu peux partir d’une structure du format), ou demande une proposition à importer.</p>
-          {idea.structure.length > 0 && <ol className="small">{idea.structure.map((b) => <li key={b.id}>{b.label} ({b.seconds} s){b.content && <span className="muted"> — {b.content}</span>}</li>)}</ol>}
+          {aiOn && <AssistAction label={idea.structure.length ? 'Proposer une autre structure' : 'Proposer une structure'} run={async (sig) => { const n = await proposeStructure(idea, ctx, ctx.formats.find((f) => f.id === idea.formatId), sig); return `${n} temps forts proposés${idea.structure.length ? ' (l’ancienne structure est gardée dans les versions)' : ''}. Modifie-les dans la fiche si besoin.`; }} />}
+          {idea.structure.length > 0 ? <ol className="small">{idea.structure.map((b) => <li key={b.id}><b>{b.label}</b> ({b.seconds} s){b.content && <span className="muted"> — {b.content}</span>}</li>)}</ol>
+            : <p className="small muted">Pas encore de structure.</p>}
+          {idea.structure.length > 0 && <p className="small muted">Total {idea.structure.reduce((a, b) => a + b.seconds, 0)} s</p>}
           <a className="btn sm" href={`#/ideas/${idea.id}`}>Éditer la structure dans la fiche</a>
-          <details><summary className="small">Proposition de structure par l’assistant</summary>
-            <PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'structure' })} importLabel="Importer comme structure (l’ancienne est gardée en version)" onImport={importStructure} />
-          </details>
+          <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'structure' })} importLabel="Importer comme structure (l’ancienne est gardée en version)" onImport={importStructure} /></Fallback>
           <button className="btn" onClick={() => setStep(5)}>Continuer →</button>
         </div>
       )}
-      {step === 5 && (
-        <div className="stack">
-          <p className="small">Marque les temps forts faibles dans la fiche (bouton « faible »), puis demande des pistes ciblées — sans réécriture complète.</p>
-          <PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'weak' })} />
-          <button className="btn" onClick={() => setStep(6)}>Continuer →</button>
-        </div>
-      )}
+      {step === 5 && <WeakStep idea={idea} ctx={ctx} aiOn={aiOn} onNext={() => setStep(6)} />}
       {step === 6 && (
         <div className="stack">
           <p>Tout est enregistré au fur et à mesure. Tu peux valider la structure maintenant ou y revenir plus tard.</p>

@@ -37,7 +37,7 @@ export const COMPAT_LABELS: Record<CompatRating, string> = {
 };
 
 export interface Beat { id: string; label: string; content: string; seconds: number; weak?: boolean }
-export interface AngleOption { id: string; text: string; chosen: boolean; origin: 'moi' | 'claude' }
+export interface AngleOption { id: string; text: string; chosen: boolean; origin: 'moi' | 'claude' | 'ia' }
 export interface Comment { id: string; at: number; text: string }
 
 export interface Idea {

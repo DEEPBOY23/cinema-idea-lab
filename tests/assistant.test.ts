@@ -68,3 +68,22 @@ describe('migration du schéma v1 → v2', () => {
     expect(await db.inbox.count()).toBe(1);
   });
 });
+
+import { localToday } from '../src/lib/today';
+describe('quoi faire aujourd’hui (sans IA)', () => {
+  const base = (o: any) => ({ id: o.id, title: o.id, workIds: [], category: 'analyse', createdAt: 0, updatedAt: Date.now(), lastActivityAt: Date.now(), status: 'idea', observation: '', angle: '', hook: '', angles: [], structure: [], script: '', missingInfo: '', priority: 2, avDifficulty: 2, paused: false, comments: [], formatId: 'fmt-one-shot', ...o });
+  it('priorise ce qui est proche de la publication et respecte le temps dispo', () => {
+    const ideas = [
+      base({ id: 'prod', status: 'production', research: { level: 'light', justification: '', sourcesNeeded: '', missing: '', docHours: 1, shootHours: 1, editHours: 1 } }),
+      base({ id: 'struct', status: 'structure', research: { level: 'light', justification: '', sourcesNeeded: '', missing: '', docHours: 1, shootHours: 3, editHours: 2 } }),
+      base({ id: 'doc', status: 'documentation' }),
+    ];
+    const sources = [{ id: 's', title: 'Interview', url: '', author: '', media: '', date: '', type: '', topics: [], interest: '', state: 'toread', access: 'verified', ideaIds: ['doc'], workIds: [], createdAt: 0, updatedAt: 0, minutes: 10 }];
+    const big = localToday(600, ideas as any, sources as any, BUILTIN_FORMATS, DEFAULT_SETTINGS, []);
+    expect(big[0].ideaId).toBe('prod');
+    const short = localToday(15, ideas as any, sources as any, BUILTIN_FORMATS, DEFAULT_SETTINGS, []);
+    expect(short.every((a) => a.minutes <= 15 * 1.25)).toBe(true);
+    expect(short.some((a) => a.sourceId === 's')).toBe(true);
+    expect(localToday(60, [], [], BUILTIN_FORMATS, DEFAULT_SETTINGS, [])).toEqual([]);
+  });
+});

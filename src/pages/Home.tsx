@@ -8,6 +8,10 @@ import { IdeaRow } from '../components/pickers';
 import { weekProgress } from '../lib/planning';
 import { isoWeek } from '../lib/util';
 import { SOURCE_STATES } from '../types';
+import { localToday, aiToday, type TodayAction } from '../lib/today';
+import type { Source } from '../types';
+import type { Memory } from '../lib/assistant';
+import { useRef } from 'react';
 
 export default function Home() {
   const ideas = useIdeas();
@@ -60,6 +64,8 @@ export default function Home() {
         {note && <p className="small muted" style={{ marginTop: 6 }}>{note} {note.includes('format proposé') && <a href="#/ideas">Voir</a>}</p>}
       </div>
 
+      <TodayCard memory={memory} sources={sources} aiOn={provider !== 'none'} />
+
       <h2>Cette semaine <span className="muted small">({week.replace('-W', ' · semaine ')})</span></h2>
       <div className="card">
         <WeekBar label="Analyse longue" n={wp.long.length} goal={settings.weeklyLong} />
@@ -96,6 +102,52 @@ export function WeekBar({ label, n, goal }: { label: string; n: number; goal: nu
       <span>{label}</span>
       <div className="progress"><i style={{ width: `${pct}%` }} /></div>
       <span className="muted">{n} / {goal}</span>
+    </div>
+  );
+}
+
+const TIMES = [[15, '15 min'], [60, '1 h'], [120, '2 h'], [240, '½ journée']] as const;
+
+function TodayCard({ memory, sources, aiOn }: { memory: Memory; sources: Source[]; aiOn: boolean }) {
+  const [minutes, setMinutes] = useState<number>(() => { try { return Number(localStorage.getItem('cil.today.min')) || 60; } catch { return 60; } });
+  const [ai, setAi] = useState<{ message: string; actions: TodayAction[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const abort = useRef<AbortController | null>(null);
+  const local = localToday(minutes, memory.ideas, sources, memory.formats, memory.settings, memory.events);
+  const actions = ai?.actions ?? local;
+  const pick = (m: number) => { setMinutes(m); setAi(null); try { localStorage.setItem('cil.today.min', String(m)); } catch { /* */ } };
+  const ask = async () => {
+    setBusy(true); setErr('');
+    abort.current = new AbortController();
+    try { setAi(await aiToday(minutes, memory, sources, abort.current.signal)); }
+    catch (e: any) { setErr(e?.name === 'AbortError' ? '' : (e?.message ?? String(e))); }
+    setBusy(false);
+  };
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="row between wrap">
+        <h3 style={{ margin: 0 }}>Quoi faire aujourd’hui ?</h3>
+        <div className="seg">{TIMES.map(([m, l]) => <button key={m} className={minutes === m ? 'on' : ''} onClick={() => pick(m)}>{l}</button>)}</div>
+      </div>
+      {ai?.message && <p className="small" style={{ margin: '8px 0 0' }}>{ai.message}</p>}
+      {actions.length ? (
+        <ul className="list" style={{ marginTop: 10 }}>
+          {actions.map((a, i) => (
+            <li key={i} onClick={() => go(a.sourceId ? `docs/source/${a.sourceId}` : a.ideaId ? `ideas/${a.ideaId}` : 'ideas')}>
+              <div className="row between"><span className="item-title">{a.action}</span><span className="muted small">≈ {a.minutes >= 60 ? `${Math.round(a.minutes / 30) / 2} h` : `${a.minutes} min`}</span></div>
+              <div className="item-meta"><span>{a.why}</span></div>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="small muted" style={{ marginTop: 8 }}>Rien d’urgent. Verse de nouvelles idées dans le <a href="#/bac">Bac à idées</a> ou explore un format.</p>}
+      <div className="row wrap" style={{ marginTop: 8 }}>
+        {aiOn && (busy ? <button className="btn sm" onClick={() => abort.current?.abort()}>L’assistant réfléchit… (annuler)</button>
+          : <button className="btn sm primary" onClick={ask}>✦ {ai ? 'Redemander' : 'Demander à l’assistant'}</button>)}
+        {ai && <button className="btn sm ghost" onClick={() => setAi(null)}>Revenir aux suggestions simples</button>}
+        <span className="tiny muted">{ai ? 'Proposé par l’assistant parmi tes idées.' : 'Suggestions simples : ce qui est le plus proche d’être publié, puis tes lectures en cours.'}</span>
+      </div>
+      {err && <p className="small tag-hypothesis">{err}</p>}
     </div>
   );
 }

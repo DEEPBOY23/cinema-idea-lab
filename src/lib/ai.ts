@@ -177,6 +177,60 @@ async function geminiChat(system: string, user: string, json: boolean, signal?: 
   return { text: cand?.finishReason === 'MAX_TOKENS' ? `${text}\n\n[Réponse coupée]` : text, model: j.modelVersion ?? model };
 }
 
+// ---------------- Recherche web réelle (Gemini + Google Search) ----------------
+export interface FoundSource { url: string; title: string; viaGoogle: boolean; note?: string }
+export interface GroundedResult { text: string; sources: FoundSource[]; queries: string[]; model: string }
+// La recherche Google n'est gratuite que sur certains modèles (Gemini 2.5 Flash d'après la doc de Google) :
+// on essaie d'abord celui-ci, puis le modèle choisi.
+const GROUNDING_FREE_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+export const groundingAvailable = () => getProvider() === 'gemini';
+
+const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+
+export async function searchWebSources(prompt: string, signal?: AbortSignal): Promise<GroundedResult> {
+  const cfg = getGeminiConfig();
+  if (!cfg.apiKey) throw new Error('La recherche de sources réelles utilise Gemini : ajoute ta clé dans Paramètres → Assistant IA.');
+  const order = [...new Set([...GROUNDING_FREE_MODELS, cfg.model].filter(Boolean))];
+  let lastErr: Error | null = null;
+  for (const model of order) {
+    let r: Response;
+    try {
+      r = await fetch(`${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', signal,
+        headers: { 'x-goog-api-key': cfg.apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }),
+      });
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e;
+      throw new Error('Hors ligne : la recherche de sources demande une connexion.');
+    }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { lastErr = geminiError(r.status, j); if (r.status === 400 && /API key/i.test(j?.error?.message ?? '')) throw lastErr; continue; }
+    const cand = j.candidates?.[0];
+    const text = (cand?.content?.parts ?? []).map((p: any) => (p.thought ? '' : p.text ?? '')).join('').trim();
+    const gm = cand?.groundingMetadata ?? {};
+    const chunks: FoundSource[] = (gm.groundingChunks ?? [])
+      .map((c: any) => c.web).filter((w: any) => w?.uri)
+      .map((w: any) => ({ url: w.uri as string, title: (w.title as string) || host(w.uri), viaGoogle: true }));
+    if (!chunks.length) { lastErr = new Error('La recherche Google n’a rien renvoyé pour cette demande. Précise le sujet (film, réalisateur, technique).'); continue; }
+    // Liens écrits par le modèle : gardés seulement si leur site fait partie des résultats Google.
+    const googleDomains = new Set(chunks.map((c) => (c.title.includes('.') ? c.title.replace(/^www\./, '') : host(c.url))));
+    const written: FoundSource[] = [];
+    for (const m of text.matchAll(/https?:\/\/[^\s)\]>"]+/g)) {
+      const url = m[0].replace(/[.,;:]+$/, '');
+      const h = host(url);
+      if (h && [...googleDomains].some((d) => h === d || h.endsWith('.' + d))) {
+        const line = (text.split('\n') as string[]).find((l: string) => l.includes(url)) ?? '';
+        written.push({ url, title: line.replace(url, '').replace(/^[-*•\d.)\s]+/, '').replace(/[\s—–:-]+$/, '').slice(0, 140) || h, viaGoogle: true, note: 'lien direct cité par Gemini, site confirmé par Google' });
+      }
+    }
+    const seen = new Set<string>();
+    const sources = [...written, ...chunks].filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
+    return { text, sources, queries: gm.webSearchQueries ?? [], model: j.modelVersion ?? model };
+  }
+  throw lastErr ?? new Error('Recherche impossible pour le moment.');
+}
+
 // ---------------- Interface commune ----------------
 export interface AIText { text: string; model: string; note?: string }
 

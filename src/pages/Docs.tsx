@@ -10,6 +10,7 @@ import { WorkPicker } from '../components/pickers';
 import { buildPrompt, searchLinks } from '../lib/prompts';
 import { extractLinks, parseList } from '../lib/text';
 import { fmtDate, fmtDateTime } from '../lib/util';
+import { WebSourceFinder } from '../components/webSources';
 
 type Tab = 'sources' | 'notes' | 'files' | 'search';
 
@@ -367,6 +368,8 @@ function SearchHelper({ ideaId }: { ideaId?: string }) {
       <p className="note small">Aucune API de recherche gratuite sans clé n’est intégrée : l’app prépare des requêtes ciblées qui s’ouvrent dans ton navigateur, et un prompt pour Claude. Importe ensuite les liens trouvés (bouton « + Source » → import multiple).</p>
       <select value={sel} onChange={(e) => setSel(e.target.value)}><option value="">— Recherche libre —</option>{ideas.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}</select>
       <label className="field"><span className="field-label">Requête</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ex. Roger Deakins lighting interview" /></label>
+      <WebSourceFinder subject={q} idea={idea} />
+      <p className="small muted" style={{ margin: '4px 0' }}>Ou cherche toi-même :</p>
       <div className="row wrap">{searchLinks(q).map((l) => <a key={l.label} className={`btn sm ${online ? '' : 'ghost'}`} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}</div>
       {!online && <p className="small muted">Hors ligne : les liens s’ouvriront quand la connexion reviendra.</p>}
       <h3 style={{ marginTop: 14 }}>Inspiration documentaire avec Claude</h3>

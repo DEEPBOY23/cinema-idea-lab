@@ -6,6 +6,7 @@ import { exportAll, importBackup, downloadJson, autoBackupIfDue, type BackupFile
 import { restore } from '../lib/actions';
 import { Section } from '../components/ui';
 import { fmtDateTime } from '../lib/util';
+import { DEFAULT_SYNC_URL } from '../config';
 import { getClaudeConfig, setClaudeConfig, clearClaudeConfig, testClaudeKey, CLAUDE_MODELS } from '../lib/claude';
 import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickDefaultModel, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, listGeminiModels, pickGeminiModel } from '../lib/ai';
 import { useAIProvider } from '../components/ui';
@@ -27,7 +28,7 @@ export default function SettingsPage() {
 
 function SyncSection() {
   const cfg = getSyncConfig();
-  const [url, setUrl] = useState(cfg.databaseUrl);
+  const [url, setUrl] = useState(cfg.databaseUrl || DEFAULT_SYNC_URL);
   const s = useSync();
   const online = useOnline();
   const [busy, setBusy] = useState(false);
@@ -65,7 +66,7 @@ function SyncSection() {
       {s.error && <p className="note warn small">Erreur : {s.error}</p>}
       {!syncActive ? (
         <>
-          <p className="muted small">L’application fonctionne entièrement en local. Pour synchroniser Mac et téléphone, crée une base Dexie Cloud gratuite (voir README) puis colle son adresse ici, sur chaque appareil.</p>
+          <p className="muted small">L’application fonctionne entièrement en local. Ta base est déjà prête : clique sur « Activer la synchronisation » sur chaque appareil (Mac et téléphone), puis connecte-toi avec le même e-mail.</p>
           <label className="field"><span className="field-label">Adresse de la base Dexie Cloud</span><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://xxxxxxxx.dexie.cloud" /></label>
           <button className="btn primary" style={{ marginTop: 8 }} disabled={!url.trim().startsWith('https://')} onClick={enable}>Activer la synchronisation</button>
         </>
