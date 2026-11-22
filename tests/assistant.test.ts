@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect } from 'vitest';
 import { BUILTIN_FORMATS, DEFAULT_SETTINGS } from '../src/defaults';
 import { localSuggest, splitLocal, memoryBlock, totalOf } from '../src/lib/assistant';
-import { extractJson, pickDefaultModel, pickGeminiModel } from '../src/lib/ai';
+import { extractJson, pickOpenAIModel, pickGeminiModel, openAIMonthlyEstimate } from '../src/lib/ai';
 import { LabDB } from '../src/schema';
 import Dexie from 'dexie';
 
@@ -32,10 +32,16 @@ describe('réponses de l’IA', () => {
     expect(extractJson<{ a: number }>('Voici : {"a":2} merci').a).toBe(2);
     expect(() => extractJson('pas de json')).toThrow();
   });
-  it('choisit le modèle complet le plus récent', () => {
-    expect(pickDefaultModel(['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-2025-04-14', 'gpt-4.1'])).toBe('gpt-4.1');
-    expect(pickDefaultModel(['gpt-9-mini', 'gpt-9', 'gpt-8'])).toBe('gpt-9');
-    expect(pickDefaultModel([])).toBe('');
+  it('ChatGPT : choisit le modèle le plus récent de la gamme demandée', () => {
+    const ids = ['gpt-6.2-astra', 'gpt-6.2-sol', 'gpt-6.1-terra', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5-nano', 'gpt-6-luna-2026-05-01'];
+    expect(pickOpenAIModel(ids, 'eco')).toBe('gpt-6-luna');
+    expect(pickOpenAIModel(ids, 'balanced')).toBe('gpt-6.1-terra');
+    expect(pickOpenAIModel(ids, 'premium')).toBe('gpt-6.2-sol');
+    expect(pickOpenAIModel(ids, 'max')).toBe('gpt-6.2-astra');
+    expect(pickOpenAIModel(['gpt-6.2-sol', 'gpt-6.2-astra'], 'eco')).toBe('gpt-6.2-sol'); // repli sur la gamme la plus proche
+    expect(pickOpenAIModel([])).toBe('');
+    expect(openAIMonthlyEstimate('gpt-6-luna')).toBeCloseTo(0.24);
+    expect(openAIMonthlyEstimate('gpt-6.2-astra')).toBeCloseTo(19.2);
   });
   it('Gemini : préfère les modèles stables qui répondent sur l’offre gratuite', () => {
     expect(pickGeminiModel(['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-3.5-flash', 'gemini-flash-latest'])).toBe('gemini-3.5-flash');

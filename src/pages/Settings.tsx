@@ -8,7 +8,7 @@ import { Section } from '../components/ui';
 import { fmtDateTime } from '../lib/util';
 import { DEFAULT_SYNC_URL } from '../config';
 import { getClaudeConfig, setClaudeConfig, clearClaudeConfig, testClaudeKey, CLAUDE_MODELS } from '../lib/claude';
-import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickDefaultModel, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, probeGeminiModels } from '../lib/ai';
+import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickOpenAIModel, openAITierOf, openAIMonthlyEstimate, OPENAI_TIERS, type OpenAITier, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, probeGeminiModels, listGeminiModels, clearGroundingRefusal } from '../lib/ai';
 import { useAIProvider } from '../components/ui';
 
 export default function SettingsPage() {
@@ -242,6 +242,8 @@ function AboutSection() {
   );
 }
 
+const fmtUsd = (n: number) => `${n < 1 ? n.toFixed(2) : n.toFixed(1).replace('.0', '')} $`.replace('.', ',');
+
 /** Assistant IA : Gemini gratuit par défaut ; ChatGPT et Claude (payants) en option pour plus tard. */
 function AssistantSection() {
   const provider = useAIProvider();
@@ -254,10 +256,42 @@ function AssistantSection() {
   const [okey, setOkey] = useState(oc.apiKey);
   const [models, setModels] = useState<string[]>(oc.model ? [oc.model] : []);
   const [omodel, setOmodel] = useState(oc.model);
+  const [otier, setOtier] = useState<OpenAITier>(oc.tier ?? 'eco');
   const cc = getClaudeConfig();
   const [ckey, setCkey] = useState(cc.apiKey);
   const [cmodel, setCmodel] = useState(cc.model);
   const [msg, setMsg] = useState('');
+
+  const [gplan, setGplan] = useState<'free' | 'paid'>(gc.plan ?? 'free');
+  const [gtier, setGtier] = useState<'standard' | 'eco'>(gc.paidTier ?? 'standard');
+  /** En payant : modèle de la gamme choisie s'il existe pour la clé, en tête ; les modèles testés restent en secours. */
+  const applyPaid = async (tier: 'standard' | 'eco') => {
+    const cur = getGeminiConfig();
+    if (!cur.apiKey) { setMsg('Colle d’abord ta clé Gemini, puis « Connecter ».'); return; }
+    try {
+      const ids = await listGeminiModels(cur.apiKey);
+      const wanted = tier === 'eco' ? ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest'] : ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+      const m = wanted.find((w) => ids.includes(w)) ?? cur.model;
+      const models = [m, ...(cur.models ?? []).filter((x) => x !== m)];
+      setGeminiConfig({ ...cur, plan: 'paid', paidTier: tier, model: m, models });
+      setGmodel(m); setGmodels(models);
+      clearGroundingRefusal();
+      setMsg(`Offre payante : modèle ${m}. La recherche de sources sera tentée ; si Google la refuse encore, vérifie que la facturation est bien active pour cette clé.`);
+    } catch (e: any) { setMsg(e?.message ?? String(e)); }
+  };
+  const choosePlan = (p: 'free' | 'paid') => {
+    setGplan(p);
+    const cur = getGeminiConfig();
+    if (p === 'paid') { void applyPaid(gtier); return; }
+    if (!cur.apiKey) { setMsg(''); return; }
+    setGeminiConfig({ ...cur, plan: 'free' });
+    setMsg('Retour à l’offre gratuite : test des modèles qui répondent gratuitement…');
+    probeGeminiModels(cur.apiKey).then((ok) => {
+      if (ok.length) { setGeminiConfig({ ...getGeminiConfig(), plan: 'free', model: ok[0], models: ok }); setGmodel(ok[0]); setGmodels(ok); }
+      setMsg(`Offre gratuite${ok.length ? ` (modèle ${ok[0]})` : ''}. Si tu as activé la facturation chez Google, elle reste active : c’est là-bas qu’il faut la couper.`);
+    }).catch((e) => setMsg(e?.message ?? String(e)));
+  };
+  const chooseTier = (t: 'standard' | 'eco') => { setGtier(t); void applyPaid(t); };
 
   const connectGemini = async () => {
     setMsg('Connexion à Gemini…');
@@ -265,7 +299,8 @@ function AssistantSection() {
       const ok = await probeGeminiModels(gkey.trim(), setMsg);
       if (!ok.length) { setMsg('Clé valide, mais aucun modèle Gemini n’a répondu (surcharge ?). Réessaie dans quelques minutes.'); return; }
       setGmodels(ok); setGmodel(ok[0]);
-      setGeminiConfig({ apiKey: gkey.trim(), model: ok[0], models: ok }); setProvider('gemini');
+      setGeminiConfig({ apiKey: gkey.trim(), model: ok[0], models: ok, plan: gplan, paidTier: gtier }); setProvider('gemini');
+      if (gplan === 'paid') await applyPaid(gtier);
       setMsg(`Connecté à Gemini. ${ok.length} modèle${ok.length > 1 ? 's répondent' : ' répond'} ; principal : ${ok[0]}. Si l’un est surchargé, l’app passe automatiquement au suivant.`);
     } catch (e: any) { setMsg(e?.message ?? String(e)); }
   };
@@ -274,10 +309,11 @@ function AssistantSection() {
     try {
       const ids = await listOpenAIModels(okey.trim());
       if (!ids.length) { setMsg('Clé valide, mais aucun modèle de texte accessible avec ce compte.'); return; }
-      const m = omodel && ids.includes(omodel) ? omodel : pickDefaultModel(ids);
+      const m = omodel && ids.includes(omodel) && openAITierOf(omodel) === otier ? omodel : pickOpenAIModel(ids, otier);
       setModels(ids); setOmodel(m);
-      setOpenAIConfig({ apiKey: okey.trim(), model: m }); setProvider('openai');
-      setMsg(`Connecté à ChatGPT (${m}).`);
+      setOpenAIConfig({ apiKey: okey.trim(), model: m, tier: otier }); setProvider('openai');
+      const est = openAIMonthlyEstimate(m);
+      setMsg(`Connecté à ChatGPT (${m}).${est !== undefined ? ` Coût estimé pour un usage régulier : ≈ ${fmtUsd(est)} par mois.` : ''}`);
     } catch (e: any) { setMsg(e?.message ?? String(e)); }
   };
 
@@ -286,7 +322,11 @@ function AssistantSection() {
       <p className="small">Avec l’assistant, l’app <b>rattache chaque idée à tes formats</b>, <b>trie ton bac à idées du plus rapide au plus long</b> et répond directement dans l’atelier, sans quitter l’app. Sans assistant, tout fonctionne avec des règles simples et le copier-coller.</p>
 
       <div className="card" style={{ marginTop: 10 }}>
-        <h3>Gemini (Google) · gratuit, recommandé</h3>
+        <h3>Gemini (Google) · {gplan === 'paid' ? 'offre payante' : 'gratuit, recommandé'}</h3>
+        <div className="seg" style={{ margin: '6px 0 10px' }}>
+          <button className={gplan === 'free' ? 'on' : ''} onClick={() => choosePlan('free')}>Gratuit</button>
+          <button className={gplan === 'paid' ? 'on' : ''} onClick={() => choosePlan('paid')}>Payant (+ recherche de sources)</button>
+        </div>
         <ol className="small" style={{ margin: '0 0 8px', paddingLeft: 18 }}>
           <li>Ouvre <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a> et connecte-toi avec ton compte Google.</li>
           <li>Clique sur « Create API key » (aucune carte bancaire demandée), puis copie la clé.</li>
@@ -295,14 +335,29 @@ function AssistantSection() {
         <input type="password" autoComplete="off" value={gkey} onChange={(e) => setGkey(e.target.value)} placeholder="Clé Gemini (AIza…)" />
         {gmodels.length > 1 && (
           <label className="field"><span className="field-label">Modèle principal (parmi ceux qui ont répondu au test)</span>
-            <select value={gmodel} onChange={(e) => { setGmodel(e.target.value); setGeminiConfig({ apiKey: gkey.trim(), model: e.target.value, models: gmodels }); }}>{gmodels.map((m) => <option key={m}>{m}</option>)}</select></label>
+            <select value={gmodel} onChange={(e) => { setGmodel(e.target.value); setGeminiConfig({ ...getGeminiConfig(), apiKey: gkey.trim(), model: e.target.value, models: gmodels }); }}>{gmodels.map((m) => <option key={m}>{m}</option>)}</select></label>
         )}
         <div className="row wrap" style={{ marginTop: 8 }}>
           <button className="btn primary" disabled={!gkey.trim() || !online} onClick={connectGemini}>Connecter</button>
           {provider !== 'gemini' && gc.apiKey && <button className="btn ghost" onClick={() => { setProvider('gemini'); setMsg('Gemini est l’assistant actif.'); }}>Utiliser Gemini</button>}
           {gc.apiKey && <button className="btn ghost danger" onClick={() => { clearGeminiConfig(); setGkey(''); setGmodels([]); setGmodel(''); setMsg('Clé Gemini effacée de cet appareil.'); }}>Effacer la clé</button>}
         </div>
-        <p className="tiny muted" style={{ marginTop: 8 }}>Gratuit avec des limites quotidiennes (largement suffisantes pour trier des idées). Sur l’offre gratuite, Google peut utiliser les textes envoyés pour améliorer ses services : n’y mets rien de confidentiel. Conditions à vérifier sur le site de Google.</p>
+        {gplan === 'free' ? (
+          <p className="tiny muted" style={{ marginTop: 8 }}>Gratuit avec des limites quotidiennes (largement suffisantes pour trier des idées). Tout l’assistant fonctionne, sauf la recherche automatique de sources sur Google (réservée à l’offre payante). Sur l’offre gratuite, Google peut utiliser les textes envoyés pour améliorer ses services : n’y mets rien de confidentiel.</p>
+        ) : (
+          <div className="note small" style={{ marginTop: 10 }}>
+            <p style={{ margin: '0 0 6px' }}><b>Offre payante : même clé, facturation activée chez Google.</b> Débloque la recherche de vraies sources, et Google n’utilise plus tes textes pour améliorer ses services.</p>
+            <ol style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+              <li>Sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>, active la facturation pour ta clé (« Set up billing ») et <b>fixe une limite de dépense</b> (ex. 5 $/mois).</li>
+              <li>Choisis ta gamme ci-dessous. C’est tout : rien d’autre à changer dans l’app.</li>
+            </ol>
+            <div className="seg" style={{ marginBottom: 6 }}>
+              <button className={gtier === 'standard' ? 'on' : ''} onClick={() => chooseTier('standard')}>Standard (Gemini 3.8 Flash)</button>
+              <button className={gtier === 'eco' ? 'on' : ''} onClick={() => chooseTier('eco')}>Économique (Flash-Lite)</button>
+            </div>
+            <p className="tiny muted" style={{ margin: 0 }}>Coût estimé pour un usage régulier (≈ 150 demandes/mois) : Standard ≈ 2 $/mois jusqu’au 31/12/2026, puis ≈ 3,60 $ · Économique ≈ 1,10 $/mois. Recherches de sources : 5 000 gratuites par mois, puis 14 $ les 1 000. Tarifs Google du 22/11/2026, à vérifier sur <a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noreferrer">la page des prix</a>.</p>
+          </div>
+        )}
       </div>
 
       {msg && <p className="small" style={{ marginTop: 8 }}>{msg}</p>}
@@ -313,7 +368,22 @@ function AssistantSection() {
         <div className="card">
           <h3>ChatGPT (OpenAI)</h3>
           <input type="password" autoComplete="off" value={okey} onChange={(e) => setOkey(e.target.value)} placeholder="sk-…" />
-          {models.length > 1 && <select style={{ marginTop: 8 }} value={omodel} onChange={(e) => { setOmodel(e.target.value); setOpenAIConfig({ apiKey: okey.trim(), model: e.target.value }); }}>{models.map((m) => <option key={m}>{m}</option>)}</select>}
+          <span className="field-label" style={{ marginTop: 10 }}>Gamme</span>
+          <div className="seg">{OPENAI_TIERS.map((t) => (
+            <button key={t.id} className={otier === t.id ? 'on' : ''} onClick={() => {
+              setOtier(t.id);
+              if (models.length) { const m = pickOpenAIModel(models, t.id); setOmodel(m); setOpenAIConfig({ apiKey: okey.trim(), model: m, tier: t.id }); }
+            }}>{t.label}</button>
+          ))}</div>
+          <p className="tiny muted" style={{ margin: '6px 0 0' }}>{OPENAI_TIERS.find((t) => t.id === otier)?.hint} Estimations pour un usage régulier (≈ 150 demandes/mois) : Économique ≈ 0,25 $ · Équilibré ≈ 2,50 $ · Haut de gamme ≈ 5 $ · Maximum ≈ 19 $ par mois (tarifs OpenAI du 22/11/2026).</p>
+          {models.length > 1 && (
+            <label className="field" style={{ marginTop: 8 }}><span className="field-label">Modèle exact</span>
+              <select value={omodel} onChange={(e) => { setOmodel(e.target.value); const t = openAITierOf(e.target.value); if (t) setOtier(t); setOpenAIConfig({ apiKey: okey.trim(), model: e.target.value, tier: t ?? otier }); }}>
+                {models.map((m) => { const est = openAIMonthlyEstimate(m); return <option key={m} value={m}>{m}{est !== undefined ? ` · ≈ ${fmtUsd(est)}/mois` : ''}</option>; })}
+              </select></label>
+          )}
+          {omodel && <p className="small" style={{ margin: '6px 0 0' }}>Modèle utilisé : <b>{omodel}</b>{openAIMonthlyEstimate(omodel) !== undefined ? ` · ≈ ${fmtUsd(openAIMonthlyEstimate(omodel)!)} par mois` : ''}</p>}
+          <p className="tiny muted">Avec ChatGPT, la recherche automatique de sources n’est pas encore disponible (Gemini uniquement).</p>
           <div className="row wrap" style={{ marginTop: 8 }}>
             <button className="btn" disabled={!okey.trim() || !online} onClick={connectOpenAI}>Connecter</button>
             {oc.apiKey && <button className="btn ghost danger" onClick={() => { clearOpenAIConfig(); setOkey(''); setModels([]); setOmodel(''); setMsg('Clé OpenAI effacée.'); }}>Effacer</button>}

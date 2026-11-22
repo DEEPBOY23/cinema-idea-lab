@@ -5,7 +5,7 @@
 import { getClaudeConfig, askClaude, claudeEnabled } from './claude';
 
 export type Provider = 'gemini' | 'openai' | 'claude' | 'none';
-export interface OpenAIConfig { apiKey: string; model: string }
+export interface OpenAIConfig { apiKey: string; model: string; tier?: OpenAITier }
 const OKEY = 'cil.openai';
 const PKEY = 'cil.ai.provider';
 
@@ -17,7 +17,7 @@ export function setOpenAIConfig(c: OpenAIConfig) { localStorage.setItem(OKEY, JS
 export function clearOpenAIConfig() { localStorage.removeItem(OKEY); notify(); }
 
 // ---- Gemini (Google) : fournisseur par défaut, clé gratuite sur Google AI Studio ----
-export interface GeminiConfig { apiKey: string; model: string; models?: string[] }
+export interface GeminiConfig { apiKey: string; model: string; models?: string[]; plan?: 'free' | 'paid'; paidTier?: 'standard' | 'eco' }
 const GKEY = 'cil.gemini';
 export function getGeminiConfig(): GeminiConfig {
   try { const r = localStorage.getItem(GKEY); if (r) return JSON.parse(r); } catch { /* indisponible */ }
@@ -55,24 +55,49 @@ export async function listOpenAIModels(apiKey: string): Promise<string[]> {
   return (j.data as { id: string }[]).map((m) => m.id).filter((id) => /^(gpt-|o\d)/.test(id) && !EXCLUDE.test(id)).sort();
 }
 
-/** Choix par défaut « le plus pertinent » : la version GPT la plus récente, modèle complet (pas mini/nano), alias sans date. */
-export function pickDefaultModel(ids: string[]): string {
-  const score = (id: string) => {
-    const v = parseFloat((id.match(/^gpt-(\d+(?:\.\d+)?)/) ?? [])[1] ?? '0');
-    let s = v * 100;
-    if (/mini|nano/.test(id)) s -= 30;
-    if (/\d{4}-\d{2}-\d{2}/.test(id)) s -= 5; // préférer l'alias qui suit les mises à jour
-    if (/chat-latest/.test(id)) s -= 2;
-    return s;
-  };
-  return [...ids].sort((a, b) => score(b) - score(a))[0] ?? '';
+// Gammes ChatGPT (API) et tarifs officiels relevés le 22/11/2026 sur developers.openai.com/api/docs/pricing
+// (USD par million de jetons : envoyé / écrit). Les prix évoluent : vérifier sur la page d'OpenAI.
+export type OpenAITier = 'eco' | 'balanced' | 'premium' | 'max';
+export const OPENAI_TIERS: { id: OpenAITier; label: string; hint: string }[] = [
+  { id: 'eco', label: 'Économique', hint: 'Le moins cher. Bien pour trier et rattacher aux formats ; un peu moins fin pour les angles.' },
+  { id: 'balanced', label: 'Équilibré', hint: 'Bon compromis qualité / prix.' },
+  { id: 'premium', label: 'Haut de gamme', hint: 'Plus fin sur les angles et les structures.' },
+  { id: 'max', label: 'Maximum', hint: 'Le plus puissant et de loin le plus cher. Rarement utile ici.' },
+];
+export const OPENAI_PRICES: Record<string, [number, number]> = {
+  'gpt-6.2-astra': [8, 40], 'gpt-6-astra': [10, 50], 'gpt-6.2-sol': [2, 10], 'gpt-5.6-sol': [4, 20],
+  'gpt-6.1-terra': [1, 5], 'gpt-5.6-terra': [2, 12], 'gpt-6-luna': [0.1, 0.5], 'gpt-5.6-luna': [0.2, 1.2],
+  'gpt-5.4-mini': [0.75, 4.5], 'gpt-5.4-nano': [0.2, 1.25], 'gpt-5-mini': [0.25, 2], 'gpt-5-nano': [0.05, 0.4],
+};
+export function openAITierOf(id: string): OpenAITier | null {
+  if (/astra/.test(id)) return 'max';
+  if (/sol/.test(id)) return 'premium';
+  if (/terra/.test(id)) return 'balanced';
+  if (/luna|nano|mini/.test(id)) return 'eco';
+  return null;
+}
+/** Coût mensuel estimé pour un usage régulier (≈ 400 000 jetons envoyés + 400 000 écrits). */
+export function openAIMonthlyEstimate(id: string): number | undefined {
+  const p = OPENAI_PRICES[id.replace(/-\d{4}-\d{2}-\d{2}$/, '')];
+  return p ? 0.4 * p[0] + 0.4 * p[1] : undefined;
+}
+/** Le modèle le plus récent de la gamme choisie (alias sans date de préférence). Repli : gamme la plus proche, en montant. */
+export function pickOpenAIModel(ids: string[], tier: OpenAITier = 'eco'): string {
+  const order: OpenAITier[] = ['eco', 'balanced', 'premium', 'max'];
+  const tryOrder = [tier, ...order.filter((t) => order.indexOf(t) > order.indexOf(tier)), ...order.filter((t) => order.indexOf(t) < order.indexOf(tier)).reverse()];
+  const ver = (id: string) => parseFloat((id.match(/^gpt-(\d+(?:\.\d+)?)/) ?? [])[1] ?? '0');
+  for (const t of tryOrder) {
+    const c = ids.filter((id) => openAITierOf(id) === t).sort((a, b) => (ver(b) - ver(a)) || (/\d{4}-\d{2}-\d{2}/.test(a) ? 1 : 0) - (/\d{4}-\d{2}-\d{2}/.test(b) ? 1 : 0) || (/nano/.test(a) ? 1 : 0) - (/nano/.test(b) ? 1 : 0));
+    if (c.length) return c[0];
+  }
+  return [...ids].sort((a, b) => ver(b) - ver(a))[0] ?? '';
 }
 
 async function openAIChat(system: string, user: string, json: boolean, signal?: AbortSignal): Promise<{ text: string; model: string }> {
   const cfg = getOpenAIConfig();
   if (!cfg.apiKey) throw new Error('Aucune clé OpenAI configurée (Paramètres → Assistant IA).');
   let model = cfg.model;
-  if (!model) { model = pickDefaultModel(await listOpenAIModels(cfg.apiKey)); setOpenAIConfig({ ...cfg, model }); }
+  if (!model) { model = pickOpenAIModel(await listOpenAIModels(cfg.apiKey), cfg.tier ?? 'eco'); setOpenAIConfig({ ...cfg, model }); }
   let r: Response;
   try {
     r = await fetch(`${OPENAI}/chat/completions`, {
@@ -235,6 +260,7 @@ const GKEY_GROUNDING = 'cil.grounding';
 /** La recherche Google de Gemini n'est pas incluse dans l'offre gratuite : on mémorise un refus pour prévenir d'emblée. */
 export const groundingRefused = () => { try { return localStorage.getItem(GKEY_GROUNDING) === 'quota'; } catch { return false; } };
 const setGroundingRefused = (v: boolean) => { try { v ? localStorage.setItem(GKEY_GROUNDING, 'quota') : localStorage.removeItem(GKEY_GROUNDING); } catch { /* */ } };
+export const clearGroundingRefusal = () => setGroundingRefused(false);
 export const GROUNDING_REFUSED_MSG = 'La recherche Google de Gemini n’est pas incluse dans l’offre gratuite (Google la refuse avec ta clé : quota à zéro). Utilise les liens de recherche ci-dessous ; elle fonctionnera si tu actives un jour la facturation sur Google AI Studio.';
 
 export async function searchWebSources(prompt: string, signal?: AbortSignal): Promise<GroundedResult> {
