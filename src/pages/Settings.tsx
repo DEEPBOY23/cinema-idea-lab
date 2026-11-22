@@ -6,12 +6,16 @@ import { exportAll, importBackup, downloadJson, autoBackupIfDue, type BackupFile
 import { restore } from '../lib/actions';
 import { Section } from '../components/ui';
 import { fmtDateTime } from '../lib/util';
+import { getClaudeConfig, setClaudeConfig, clearClaudeConfig, testClaudeKey, CLAUDE_MODELS } from '../lib/claude';
+import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickDefaultModel, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, listGeminiModels, pickGeminiModel } from '../lib/ai';
+import { useAIProvider } from '../components/ui';
 
 export default function SettingsPage() {
   return (
     <div>
       <div className="page-head"><div><h1>Paramètres</h1><p className="muted small">Appareil : {deviceId}</p></div></div>
       <SyncSection />
+      <AssistantSection />
       <BackupSection />
       <TrashSection />
       <PrefsSection />
@@ -233,6 +237,113 @@ function AboutSection() {
         <li>La dictée dépend du navigateur (sur Chrome, elle passe par un service en ligne). Sur iPhone, la dictée du clavier fonctionne dans tous les champs.</li>
         <li>Conflits : Dexie Cloud fusionne champ par champ ; si un même texte est modifié sur deux appareils, la dernière écriture gagne, mais l’autre version est conservée dans l’historique des versions.</li>
       </ul>
+    </Section>
+  );
+}
+
+/** Assistant IA : Gemini gratuit par défaut ; ChatGPT et Claude (payants) en option pour plus tard. */
+function AssistantSection() {
+  const provider = useAIProvider();
+  const online = useOnline();
+  const gc = getGeminiConfig();
+  const [gkey, setGkey] = useState(gc.apiKey);
+  const [gmodels, setGmodels] = useState<string[]>(gc.model ? [gc.model] : []);
+  const [gmodel, setGmodel] = useState(gc.model);
+  const oc = getOpenAIConfig();
+  const [okey, setOkey] = useState(oc.apiKey);
+  const [models, setModels] = useState<string[]>(oc.model ? [oc.model] : []);
+  const [omodel, setOmodel] = useState(oc.model);
+  const cc = getClaudeConfig();
+  const [ckey, setCkey] = useState(cc.apiKey);
+  const [cmodel, setCmodel] = useState(cc.model);
+  const [msg, setMsg] = useState('');
+
+  const connectGemini = async () => {
+    setMsg('Connexion à Gemini…');
+    try {
+      const ids = await listGeminiModels(gkey.trim());
+      if (!ids.length) { setMsg('Clé valide, mais aucun modèle Gemini de texte disponible pour ce compte.'); return; }
+      const m = gmodel && ids.includes(gmodel) ? gmodel : pickGeminiModel(ids);
+      setGmodels(ids); setGmodel(m);
+      setGeminiConfig({ apiKey: gkey.trim(), model: m }); setProvider('gemini');
+      setMsg(`Connecté à Gemini (${m}). L’assistant est actif dans toute l’app.`);
+    } catch (e: any) { setMsg(e?.message ?? String(e)); }
+  };
+  const connectOpenAI = async () => {
+    setMsg('Connexion à OpenAI…');
+    try {
+      const ids = await listOpenAIModels(okey.trim());
+      if (!ids.length) { setMsg('Clé valide, mais aucun modèle de texte accessible avec ce compte.'); return; }
+      const m = omodel && ids.includes(omodel) ? omodel : pickDefaultModel(ids);
+      setModels(ids); setOmodel(m);
+      setOpenAIConfig({ apiKey: okey.trim(), model: m }); setProvider('openai');
+      setMsg(`Connecté à ChatGPT (${m}).`);
+    } catch (e: any) { setMsg(e?.message ?? String(e)); }
+  };
+
+  return (
+    <Section title={`Assistant IA · ${providerLabel(provider)}`} open={provider === 'none'}>
+      <p className="small">Avec l’assistant, l’app <b>rattache chaque idée à tes formats</b>, <b>trie ton bac à idées du plus rapide au plus long</b> et répond directement dans l’atelier, sans quitter l’app. Sans assistant, tout fonctionne avec des règles simples et le copier-coller.</p>
+
+      <div className="card" style={{ marginTop: 10 }}>
+        <h3>Gemini (Google) · gratuit, recommandé</h3>
+        <ol className="small" style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+          <li>Ouvre <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a> et connecte-toi avec ton compte Google.</li>
+          <li>Clique sur « Create API key » (aucune carte bancaire demandée), puis copie la clé.</li>
+          <li>Colle-la ici et clique sur « Connecter ». C’est tout.</li>
+        </ol>
+        <input type="password" autoComplete="off" value={gkey} onChange={(e) => setGkey(e.target.value)} placeholder="Clé Gemini (AIza…)" />
+        {gmodels.length > 1 && (
+          <label className="field"><span className="field-label">Modèle (choisi automatiquement)</span>
+            <select value={gmodel} onChange={(e) => { setGmodel(e.target.value); setGeminiConfig({ apiKey: gkey.trim(), model: e.target.value }); }}>{gmodels.map((m) => <option key={m}>{m}</option>)}</select></label>
+        )}
+        <div className="row wrap" style={{ marginTop: 8 }}>
+          <button className="btn primary" disabled={!gkey.trim() || !online} onClick={connectGemini}>Connecter</button>
+          {provider !== 'gemini' && gc.apiKey && <button className="btn ghost" onClick={() => { setProvider('gemini'); setMsg('Gemini est l’assistant actif.'); }}>Utiliser Gemini</button>}
+          {gc.apiKey && <button className="btn ghost danger" onClick={() => { clearGeminiConfig(); setGkey(''); setGmodels([]); setGmodel(''); setMsg('Clé Gemini effacée de cet appareil.'); }}>Effacer la clé</button>}
+        </div>
+        <p className="tiny muted" style={{ marginTop: 8 }}>Gratuit avec des limites quotidiennes (largement suffisantes pour trier des idées). Sur l’offre gratuite, Google peut utiliser les textes envoyés pour améliorer ses services : n’y mets rien de confidentiel. Conditions à vérifier sur le site de Google.</p>
+      </div>
+
+      {msg && <p className="small" style={{ marginTop: 8 }}>{msg}</p>}
+
+      <details style={{ marginTop: 12 }}>
+        <summary className="small muted">Options payantes, pour plus tard : ChatGPT ou Claude via leur API</summary>
+        <p className="small muted" style={{ marginTop: 8 }}>Les abonnements ChatGPT Plus et Claude Pro ne peuvent pas être reliés à une app. Ces options demandent une clé API payée à l’usage (compte séparé).</p>
+        <div className="card">
+          <h3>ChatGPT (OpenAI)</h3>
+          <input type="password" autoComplete="off" value={okey} onChange={(e) => setOkey(e.target.value)} placeholder="sk-…" />
+          {models.length > 1 && <select style={{ marginTop: 8 }} value={omodel} onChange={(e) => { setOmodel(e.target.value); setOpenAIConfig({ apiKey: okey.trim(), model: e.target.value }); }}>{models.map((m) => <option key={m}>{m}</option>)}</select>}
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <button className="btn" disabled={!okey.trim() || !online} onClick={connectOpenAI}>Connecter</button>
+            {oc.apiKey && <button className="btn ghost danger" onClick={() => { clearOpenAIConfig(); setOkey(''); setModels([]); setOmodel(''); setMsg('Clé OpenAI effacée.'); }}>Effacer</button>}
+          </div>
+        </div>
+        <div className="card">
+          <h3>Claude (Anthropic)</h3>
+          <input type="password" autoComplete="off" value={ckey} onChange={(e) => setCkey(e.target.value)} placeholder="sk-ant-…" />
+          <select style={{ marginTop: 8 }} value={cmodel} onChange={(e) => setCmodel(e.target.value)}>{CLAUDE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <button className="btn" disabled={!ckey.trim() || !online} onClick={async () => {
+              setMsg('Vérification…');
+              const r = await testClaudeKey(ckey.trim());
+              if (r === 'Clé valide.') { setClaudeConfig({ apiKey: ckey.trim(), model: cmodel }); setProvider('claude'); setMsg('Connecté à Claude.'); } else setMsg(r);
+            }}>Connecter</button>
+            {cc.apiKey && <button className="btn ghost danger" onClick={() => { clearClaudeConfig(); setCkey(''); setMsg('Clé Claude effacée.'); }}>Effacer</button>}
+          </div>
+        </div>
+      </details>
+
+      {provider !== 'none' && <button className="btn sm ghost" style={{ marginTop: 10 }} onClick={() => { setProvider('none'); setMsg('Assistant désactivé : règles simples et copier-coller. Tes clés restent enregistrées.'); }}>Désactiver l’assistant</button>}
+      {provider === 'none' && (gc.apiKey || oc.apiKey || cc.apiKey) && <button className="btn sm" style={{ marginTop: 10 }} onClick={() => { setProvider(gc.apiKey ? 'gemini' : oc.apiKey ? 'openai' : 'claude'); setMsg('Assistant réactivé.'); }}>Réactiver l’assistant</button>}
+
+      <details style={{ marginTop: 8 }}><summary className="small muted">Mémoire et confidentialité</summary>
+        <ul className="small muted">
+          <li>L’IA ne se souvient de rien d’une demande à l’autre. C’est l’app qui garde ta mémoire et la lui transmet à chaque fois : tes formats, tes films vus, ton style, tes derniers choix de format et d’angle, tes délais réels.</li>
+          <li>Ces échanges n’apparaissent pas dans ton compte Gemini ou ChatGPT : ils restent dans l’app (historique de l’atelier, fiches d’idées).</li>
+          <li>Les clés restent sur cet appareil (jamais synchronisées ni exportées). Saisis-la aussi sur ton téléphone pour y avoir l’assistant.</li>
+        </ul>
+      </details>
     </Section>
   );
 }

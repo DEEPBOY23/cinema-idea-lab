@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useIdeas, useWorks, useFormats, useSettings, useSources, useEvents, useNotes, go } from '../hooks';
 import { createIdea } from '../lib/actions';
-import { Dictate, Empty } from '../components/ui';
+import { Dictate, Empty, useAIProvider } from '../components/ui';
+import { useMemory, runSuggest } from '../components/assist';
+import { db } from '../db';
 import { IdeaRow } from '../components/pickers';
 import { weekProgress } from '../lib/planning';
 import { isoWeek } from '../lib/util';
@@ -16,6 +18,9 @@ export default function Home() {
   const events = useEvents();
   const notes = useNotes();
   const [text, setText] = useState('');
+  const provider = useAIProvider();
+  const memory = useMemory();
+  const [note, setNote] = useState('');
   const week = isoWeek(Date.now());
   const wp = weekProgress(week, ideas, events, formats, settings);
 
@@ -24,7 +29,14 @@ export default function Home() {
     if (!t) return;
     const id = await createIdea({ title: t.split(/[.\n]/)[0].slice(0, 70), observation: t });
     setText('');
-    if (open) go(`ideas/${id}`);
+    if (open) { go(`ideas/${id}`); return; } // la fiche lance elle-même la proposition de formats
+    if (provider !== 'none') {
+      setNote('Idée enregistrée. Recherche des formats adaptés…');
+      const idea = await db.ideas.get(id);
+      if (idea) runSuggest(idea, memory)
+        .then((s) => setNote(s.formats.length ? `Idée enregistrée · format proposé : ${memory.formats.find((f) => f.id === s.formats[0].formatId)?.name ?? '?'}.` : 'Idée enregistrée · aucun format évident.'))
+        .catch(() => setNote('Idée enregistrée (proposition de formats indisponible pour l’instant).'));
+    } else setNote('Idée enregistrée.');
   };
 
   const inDoc = ideas.filter((i) => i.status === 'documentation').sort((a, b) => b.lastActivityAt - a.lastActivityAt).slice(0, 4);
@@ -43,7 +55,9 @@ export default function Home() {
         <div className="row" style={{ marginTop: 8 }}>
           <button className="btn primary" disabled={!text.trim()} onClick={() => capture(false)}>Enregistrer</button>
           <button className="btn" disabled={!text.trim()} onClick={() => capture(true)}>Enregistrer et développer</button>
+          <a className="small" href="#/bac" style={{ marginLeft: 'auto' }}>Plusieurs idées d’un coup ? Bac à idées →</a>
         </div>
+        {note && <p className="small muted" style={{ marginTop: 6 }}>{note} {note.includes('format proposé') && <a href="#/ideas">Voir</a>}</p>}
       </div>
 
       <h2>Cette semaine <span className="muted small">({week.replace('-W', ' · semaine ')})</span></h2>

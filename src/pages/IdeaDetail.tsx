@@ -11,6 +11,9 @@ import { milestones, segmentDurations, SEGMENTS, workedMinutes } from '../lib/st
 import { fmtDateTime, fmtDuration, fmtMinutes, toLocalInput, fromLocalInput, isoWeek, fmtDate } from '../lib/util';
 import { oralSeconds, wordCount } from '../lib/text';
 import { buildPrompt } from '../lib/prompts';
+import { FormatSuggestionsPanel, useMemory, runSuggest } from '../components/assist';
+import { useAIProvider } from '../components/ui';
+import { useRef } from 'react';
 
 const LEVELS: { id: ResearchLevelId; label: string; hint: string }[] = [
   { id: 'light', label: 'Légère', hint: 'Une scène ou une technique précise, simple à documenter.' },
@@ -45,6 +48,16 @@ export default function IdeaDetail({ id }: { id: string }) {
   const journal = useLiveQuery(() => db.journal.where('ideaId').equals(id).reverse().sortBy('at'), [id]) ?? [];
   const workshops = useLiveQuery(() => db.workshops.where('ideaId').equals(id).reverse().sortBy('createdAt'), [id]) ?? [];
   const [linkOpen, setLinkOpen] = useState(false);
+  const provider = useAIProvider();
+  const memory = useMemory();
+  const autoRan = useRef(false);
+  // Fluide : avec une IA branchée, une idée sans proposition reçoit automatiquement ses formats.
+  useEffect(() => {
+    if (autoRan.current || !idea || idea.deletedAt || idea.suggestions || provider === 'none') return;
+    if ((idea.observation + idea.script + idea.angle).trim().length < 15) return;
+    autoRan.current = true;
+    runSuggest(idea, memory).catch(() => { /* l'utilisateur peut relancer à la main */ });
+  }, [idea?.id, idea?.suggestions, provider]);
 
   if (idea === undefined) return <p className="muted">Chargement…</p>;
   if (!idea) return <Empty>Idée introuvable.</Empty>;
@@ -86,6 +99,10 @@ export default function IdeaDetail({ id }: { id: string }) {
         ))}
       </div>
       <p className="muted tiny">Étapes flexibles : tu peux sauter une étape ou revenir en arrière, chaque transition est historisée.</p>
+
+      <Section title={`Formats proposés${idea.suggestions?.formats.length ? ` (${idea.suggestions.formats.length})` : ''}`} open={!idea.formatId || !!idea.suggestions}>
+        <FormatSuggestionsPanel idea={idea} />
+      </Section>
 
       <Section title="Fiche">
         <div className="grid two">

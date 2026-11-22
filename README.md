@@ -101,11 +101,20 @@ Une page web enregistrée par son URL **n'est pas** consultable hors ligne : imp
 
 ## 6. IA et recherche : ce que l'app fait vraiment
 
-- **Aucune IA intégrée, aucune API payante.** L'atelier construit des prompts complets (idée, format, sources, notes, films vus, ton style, consignes anti-invention) ; tu les copies dans Claude, puis tu colles la réponse. L'app en extrait les angles, structures, pistes ou liens, que tu acceptes, modifies ou rejettes.
+- **Aucune IA obligatoire.** L'atelier construit des prompts complets (idée, format, sources, notes, films vus, ton style, consignes anti-invention) ; tu les copies dans Claude, puis tu colles la réponse. L'app en extrait les angles, structures, pistes ou liens, que tu acceptes, modifies ou rejettes.
+- **Option : envoi direct à l'API Claude** (Paramètres → Claude). Ton abonnement Claude Pro/Max ne peut pas être utilisé par une autre application : l'API est un service séparé (platform.claude.com), avec sa propre clé et une facturation à l'usage. Avec une clé, un bouton « Envoyer à Claude (API) » remplit la réponse ; le copier-coller reste toujours disponible. La clé reste sur l'appareil (jamais synchronisée ni exportée), le coût estimé s'affiche après chaque envoi. Modèle par défaut : Claude Opus 5.5, avec repli automatique côté serveur si le modèle décline (sauf Haiku).
 - **Pas d'API de recherche gratuite sans clé** : l'app prépare des requêtes ciblées (DuckDuckGo, Google, YouTube, American Cinematographer, No Film School, IndieWire, archive.org) et importe en lot les liens que tu colles. Tout lien importé est marqué « accès non vérifié » jusqu'à ce que tu le vérifies.
 - « Tester le lien » indique seulement si le serveur répond : impossible, depuis un navigateur, de garantir qu'une page est gratuite et sans inscription.
 - Les « suggestions » locales (niveau de recherche, planning) sont des règles simples affichées avec leurs raisons, jamais présentées comme une analyse intelligente.
 - Le diagnostic local donne des mesures (durée, longueur du hook, phrases longues, répétitions), pas des jugements.
+
+## 6 bis. Assistant IA (facultatif) et Bac à idées
+
+- **Bac à idées** (menu « Bac ») : verse tout en vrac. L'assistant sépare chaque idée, propose 1 à 3 formats (avec raison, angle et structure), estime le temps (documentation, tournage, montage) et classe **du plus rapide au plus long**. Un clic transforme une entrée en idée avec son format, sa structure et son estimation. La même page classe aussi tes idées en cours.
+- **Formats proposés** : chaque fiche d'idée a un panneau qui rattache l'idée à un ou plusieurs formats ; avec une IA branchée, il se remplit tout seul. « En faire une idée séparée » crée une variante dans un autre format.
+- **Fournisseurs** (Paramètres → Assistant IA) : **Gemini par défaut, gratuit** (clé créée sur aistudio.google.com/apikey, sans carte bancaire, avec des limites quotidiennes ; sur l'offre gratuite, Google peut utiliser les textes envoyés pour améliorer ses services). En option payante pour plus tard : ChatGPT (API OpenAI) ou Claude (API Anthropic) ; les abonnements ChatGPT Plus / Claude Pro ne peuvent pas être reliés. Les clés restent sur l'appareil.
+- **Mémoire** : l'API ne garde rien d'une demande à l'autre. L'app transmet à chaque fois ce qu'elle sait de toi : formats, films vus, style, tes 12 derniers choix de format et d'angle, tes délais réels par format.
+- **Sans IA** : règles simples par mots-clés et charge indicative des formats, clairement signalées comme telles.
 
 ## 7. Organisation du code
 

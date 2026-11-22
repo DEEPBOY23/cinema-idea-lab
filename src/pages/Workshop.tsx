@@ -10,6 +10,8 @@ import { analyzeScript, parseList, diffWords, oralSeconds, wordCount } from '../
 import { createIdea, updateIdea, setStatus, addJournal, snapshot } from '../lib/actions';
 import { extractLinks } from '../lib/text';
 import { createSource } from '../lib/actions';
+import { useMemory, runSuggest, FormatSuggestionsPanel } from '../components/assist';
+import { useAIProvider } from '../components/ui';
 
 const MODES: WorkshopMode[] = ['inspiration', 'development', 'diagnostic', 'writing', 'challenge'];
 
@@ -21,7 +23,7 @@ export default function Workshop({ query }: { query: URLSearchParams }) {
   const idea = ideas.find((i) => i.id === ideaId);
   return (
     <div>
-      <div className="page-head"><div><h1>Atelier éditorial</h1><p className="muted small">Documentation → réflexion → angle → structure → script facultatif. L’app fonctionne sans IA ; Claude est un appui optionnel via copier-coller.</p></div></div>
+      <div className="page-head"><div><h1>Atelier éditorial</h1><p className="muted small">Documentation → réflexion → angle → structure → script facultatif. L’app fonctionne sans IA ; Claude est un appui facultatif : par copier-coller, ou par envoi direct si tu as ajouté une clé API (Paramètres).</p></div></div>
       <div className="seg" style={{ marginBottom: 12 }}>{MODES.map((m) => <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{MODE_INFO[m].label}</button>)}</div>
       <p className="muted small">{MODE_INFO[mode].intro}</p>
       <div className="row" style={{ margin: '10px 0 16px' }}>
@@ -65,6 +67,8 @@ const DEV_STEPS = ['Comprendre mon idée', 'Angles', 'Choisir / combiner', 'Info
 
 function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string) => void }) {
   const ctx = useCtx(idea);
+  const memory = useMemory();
+  const aiOn = useAIProvider() !== 'none';
   const [step, setStep] = useState(0);
   const [intuition, setIntuition] = useState('');
   if (!idea) {
@@ -73,7 +77,12 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
         <h3>Écris ou dicte ton intuition, un hook ou une observation</h3>
         <div className="row between"><span className="muted small">Elle deviendra une idée dans ta bibliothèque.</span><Dictate onText={(t) => setIntuition((x) => (x ? x + ' ' : '') + t)} /></div>
         <textarea rows={4} value={intuition} onChange={(e) => setIntuition(e.target.value)} />
-        <button className="btn primary" disabled={!intuition.trim()} onClick={async () => onCreated(await createIdea({ title: intuition.trim().slice(0, 60), observation: intuition.trim() }))}>Créer l’idée et continuer</button>
+        <button className="btn primary" disabled={!intuition.trim()} onClick={async () => {
+          const id = await createIdea({ title: intuition.trim().slice(0, 60), observation: intuition.trim() });
+          onCreated(id);
+          const idea = await db.ideas.get(id);
+          if (idea && aiOn) runSuggest(idea, memory).catch(() => {});
+        }}>Enregistrer mon idée et continuer</button>
       </div>
     );
   }
@@ -96,6 +105,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
       {step === 0 && (
         <div className="stack">
           <ObsField idea={idea} />
+          <div className="card"><h3>Quel format ?</h3><FormatSuggestionsPanel idea={idea} /></div>
           <p className="muted small">Étape suivante : demander 2 ou 3 angles différents (à Claude), ou les écrire toi-même.</p>
           <button className="btn" onClick={() => setStep(1)}>Continuer →</button>
         </div>

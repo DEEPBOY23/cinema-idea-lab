@@ -6,6 +6,18 @@ import { ageTone, AGE_LABEL } from '../lib/aging';
 import type { Idea, Settings, WorkshopMode } from '../types';
 import { fmtDateTime, uid } from '../lib/util';
 import { diffWords } from '../lib/text';
+import { getProvider, askAI, providerLabel, type Provider } from '../lib/ai';
+
+/** IA active sur cet appareil (mise à jour en direct). */
+export function useAIProvider(): Provider {
+  const [on, setOn] = useState<Provider>(getProvider);
+  useEffect(() => {
+    const f = () => setOn(getProvider());
+    window.addEventListener('cil-claude-config', f);
+    return () => window.removeEventListener('cil-claude-config', f);
+  }, []);
+  return on;
+}
 
 /**
  * Champ texte à enregistrement immédiat (≈0,6 s après la frappe, et à la sortie du champ).
@@ -178,6 +190,23 @@ export function PromptBox({ prompt, mode, ideaId, input, onImport, importLabel }
   const [response, setResponse] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
   const [show, setShow] = useState(false);
+  const provider = useAIProvider();
+  const apiOn = provider !== 'none';
+  const [busy, setBusy] = useState(false);
+  const [apiMsg, setApiMsg] = useState('');
+  const abort = useRef<AbortController | null>(null);
+  const sendToClaude = async () => {
+    setBusy(true); setApiMsg('');
+    abort.current = new AbortController();
+    try {
+      const a = await askAI(prompt, abort.current.signal);
+      setResponse(a.text);
+      setApiMsg(`Réponse de ${a.model}${a.note ? ` · ${a.note}` : ''}. Relis-la, puis enregistre.`);
+    } catch (e: any) {
+      setApiMsg(e?.name === 'AbortError' || /abort/i.test(e?.message ?? '') ? 'Envoi annulé.' : (e?.message ?? String(e)));
+    }
+    setBusy(false);
+  };
   const saveResp = async () => {
     if (!response.trim()) return;
     const now = Date.now();
@@ -190,12 +219,18 @@ export function PromptBox({ prompt, mode, ideaId, input, onImport, importLabel }
     <div className="promptbox">
       <div className="row wrap">
         <CopyButton text={prompt} label="Copier le prompt" />
+        <a className="btn sm ghost" href="https://gemini.google.com/app" target="_blank" rel="noreferrer">Ouvrir Gemini ↗</a>
+        <a className="btn sm ghost" href="https://chatgpt.com/" target="_blank" rel="noreferrer">Ouvrir ChatGPT ↗</a>
         <a className="btn sm ghost" href="https://claude.ai/new" target="_blank" rel="noreferrer">Ouvrir Claude ↗</a>
         <button className="btn sm ghost" type="button" onClick={() => setShow(!show)}>{show ? 'Masquer' : 'Voir'} le prompt</button>
+        {apiOn && (busy
+          ? <button className="btn sm" type="button" onClick={() => abort.current?.abort()}>Annuler l’envoi…</button>
+          : <button className="btn sm primary" type="button" onClick={sendToClaude} title="Envoie ce prompt à l’IA branchée dans Paramètres (facturé à l’usage par le fournisseur)">Demander à {providerLabel(provider).split(' (')[0]}</button>)}
       </div>
+      {apiMsg && <p className="small muted">{apiMsg}</p>}
       {show && <pre className="prompt">{prompt}</pre>}
       <label className="field">
-        <span className="field-label">Réponse de Claude (colle-la ici)</span>
+        <span className="field-label">Réponse de l’IA {apiOn ? '' : '(colle-la ici)'}</span>
         <textarea rows={5} value={response} onChange={(e) => setResponse(e.target.value)} placeholder="Colle la réponse, puis enregistre. Tu pourras choisir, modifier ou rejeter chaque piste." />
       </label>
       <div className="row">

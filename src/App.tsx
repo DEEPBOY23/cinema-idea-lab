@@ -9,6 +9,7 @@ import Docs from './pages/Docs';
 import Workshop from './pages/Workshop';
 import Films from './pages/Films';
 import Ideas from './pages/Ideas';
+import Inbox from './pages/Inbox';
 import IdeaDetail from './pages/IdeaDetail';
 import Planning from './pages/Planning';
 import Stats from './pages/Stats';
@@ -17,6 +18,7 @@ import { Modal } from './components/ui';
 
 const NAV = [
   { path: '', label: 'Accueil', icon: '◐' },
+  { path: 'bac', label: 'Bac à idées', icon: '⧉' },
   { path: 'formats', label: 'Les 8 formats', icon: '▦' },
   { path: 'docs', label: 'Documentation', icon: '❡' },
   { path: 'atelier', label: 'Atelier', icon: '✎' },
@@ -26,7 +28,7 @@ const NAV = [
   { path: 'stats', label: 'Statistiques', icon: '∿' },
   { path: 'settings', label: 'Paramètres', icon: '⚙' },
 ];
-const MOBILE_MAIN = ['', 'ideas', 'docs', 'atelier'];
+const MOBILE_MAIN = ['', 'bac', 'ideas', 'atelier'];
 
 export function SyncBadge({ compact = false }: { compact?: boolean }) {
   const s = useSync();
@@ -66,6 +68,7 @@ export default function App() {
   let page;
   switch (top) {
     case '': page = <Home />; break;
+    case 'bac': page = <Inbox />; break;
     case 'formats': page = <Formats id={path[1]} />; break;
     case 'docs': page = <Docs sub={path[1]} id={path[2]} query={query} />; break;
     case 'atelier': page = <Workshop query={query} />; break;
@@ -99,7 +102,7 @@ export default function App() {
       <CloudInteraction />
       <nav className="tabbar">
         {NAV.filter((n) => MOBILE_MAIN.includes(n.path)).map((n) => (
-          <a key={n.path} href={`#/${n.path}`} className={top === n.path ? 'active' : ''} onClick={() => setMore(false)}><span className="ni">{n.icon}</span><small>{n.label.replace('Documentation', 'Docs')}</small></a>
+          <a key={n.path} href={`#/${n.path}`} className={top === n.path ? 'active' : ''} onClick={() => setMore(false)}><span className="ni">{n.icon}</span><small>{n.label.replace('Bac à idées', 'Bac')}</small></a>
         ))}
         <button className={more || !MOBILE_MAIN.includes(top) ? 'active' : ''} onClick={() => setMore(!more)}><span className="ni">⋯</span><small>Plus</small></button>
       </nav>

@@ -64,6 +64,7 @@ export interface Idea {
   targetSeconds?: number;
   paused: boolean;
   plannedWeek?: string; // 'YYYY-Www'
+  suggestions?: Suggestions; // formats proposés (IA ou règles locales)
   comments: Comment[];
   deletedAt?: number;
 }
@@ -157,3 +158,21 @@ export interface Settings {
 // Tables locales uniquement (jamais synchronisées)
 export interface LocalFile { id: string; name: string; type: string; size: number; blob: Blob; sourceId?: string; addedAt: number }
 export interface AutoBackup { id: string; at: number; json: string; size: number }
+
+// ---- Assistant IA : rattachement aux formats et bac à idées ----
+export type Fit = 'high' | 'conditional' | 'low';
+export const FIT_LABELS: Record<Fit, string> = { high: 'Très adapté', conditional: 'Possible', low: 'Peu adapté' };
+export interface FormatSuggestion {
+  formatId: string; fit: Fit; reason: string; angle: string; structureName?: string;
+}
+export interface Estimate {
+  level: ResearchLevelId; docHours: number; shootHours: number; editHours: number; totalHours: number; why: string;
+}
+export interface Suggestions {
+  formats: FormatSuggestion[]; estimate?: Estimate; source: 'ia' | 'local'; model?: string; at: number;
+}
+export interface InboxItem {
+  id: string; batchId: string; raw: string; title: string; summary: string; works: string[];
+  suggestions?: Suggestions; status: 'pending' | 'converted' | 'dismissed'; ideaId?: string;
+  createdAt: number; updatedAt: number;
+}
