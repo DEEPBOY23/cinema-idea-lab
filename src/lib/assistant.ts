@@ -37,7 +37,7 @@ export function memoryBlock(m: Memory): string {
   ].filter(Boolean).join('\n');
 }
 
-const RULES = `Règles : n'invente aucun fait, citation ou intention d'auteur ; si une œuvre est inconnue ou l'idée trop vague, dis-le dans "reason" et baisse la pertinence. Pas de script. Français.`;
+const RULES = `Règles : tutoie l'utilisateur ; n'invente aucun fait, citation ou intention d'auteur ; si une œuvre est inconnue ou l'idée trop vague, dis-le dans "reason" et baisse la pertinence. Pas de script. Français.`;
 
 const SUGGEST_SCHEMA = `{"formats":[{"formatId":"<id exact de la liste>","fit":"high|conditional|low","reason":"pourquoi, 1-2 phrases","angle":"angle proposé pour ce format, 1 phrase","structureName":"nom exact d'une structure du format ou vide"}],"estimate":{"level":"light|moderate|deep","docHours":0,"shootHours":0,"editHours":0,"why":"ce qui rend la vidéo rapide ou longue à faire"}}`;
 

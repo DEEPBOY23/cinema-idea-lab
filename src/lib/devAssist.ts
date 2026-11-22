@@ -7,7 +7,7 @@ import { updateIdea, snapshot, addJournal } from './actions';
 import { uid } from './util';
 import { db } from '../db';
 
-const RULES = `N'invente aucun fait, aucune citation, aucune intention d'auteur : si une information n'est pas sûre, présente-la comme une hypothèse à vérifier. Pas de script rédigé. Français, phrases courtes.`;
+const RULES = `Tutoie l'utilisateur. N'invente aucun fait, aucune citation, aucune intention d'auteur : si une information n'est pas sûre, présente-la comme une hypothèse à vérifier. Pas de script rédigé. Français, phrases courtes.`;
 const sys = (task: string, schema: string) => `Tu es l'assistant éditorial d'un vidéaste cinéma. ${task} Réponds uniquement en JSON : ${schema} ${RULES}`;
 
 async function log(ideaId: string, mode: string, input: string, response: unknown) {

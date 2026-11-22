@@ -27,7 +27,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
         <h3 style={{ margin: 0 }}>Vraies sources sur le web</h3>
         <p className="small muted" style={{ margin: '6px 0' }}>{GROUNDING_REFUSED_MSG}</p>
         <button className="btn sm ghost" onClick={() => { try { localStorage.removeItem('cil.grounding'); } catch { /* */ } run(); }}>Réessayer quand même</button>
-        {msg && <p className="small">{msg}</p>}
+        {msg && msg !== GROUNDING_REFUSED_MSG && <p className="small">{msg}</p>}
       </div>
     );
   }

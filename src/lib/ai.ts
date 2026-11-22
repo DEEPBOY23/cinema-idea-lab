@@ -287,8 +287,8 @@ export interface AIText { text: string; model: string; note?: string }
 /** Texte libre (atelier). */
 export async function askAI(prompt: string, signal?: AbortSignal): Promise<AIText> {
   const p = getProvider();
-  if (p === 'gemini') return geminiChat('Tu es un assistant éditorial cinéma rigoureux. Réponds en français.', prompt, false, signal);
-  if (p === 'openai') return openAIChat('Tu es un assistant éditorial cinéma rigoureux. Réponds en français.', prompt, false, signal);
+  if (p === 'gemini') return geminiChat('Tu es un assistant éditorial cinéma rigoureux. Réponds en français et tutoie l’utilisateur.', prompt, false, signal);
+  if (p === 'openai') return openAIChat('Tu es un assistant éditorial cinéma rigoureux. Réponds en français et tutoie l’utilisateur.', prompt, false, signal);
   if (p === 'claude') {
     const a = await askClaude(prompt, signal);
     return { text: a.text, model: a.model, note: a.costUsd !== undefined ? `≈ ${a.costUsd < 0.01 ? '< 0,01' : a.costUsd.toFixed(2).replace('.', ',')} $` : undefined };
