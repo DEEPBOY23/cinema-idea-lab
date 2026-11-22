@@ -220,3 +220,6 @@ pre.prompt { white-space: pre-wrap; font-size: 0.78rem; background: var(--bg2); 
 .art-move { grid-column: 1 / -1; }
 .add-article { display: grid; grid-template-columns: 1fr; gap: 6px; align-items: center; }
 @media (min-width: 640px) { .add-article { grid-template-columns: 2fr 1.2fr auto auto; } }
+.art-ai { color: var(--accent); }
+.art-ai:disabled { opacity: 0.5; }
+.art-note { color: var(--accent-2); }

@@ -11,6 +11,8 @@ import { buildPrompt, searchLinks } from '../lib/prompts';
 import { extractLinks, parseList } from '../lib/text';
 import { fmtDate, fmtDateTime } from '../lib/util';
 import { WebSourceFinder } from '../components/webSources';
+import { readArticle, canReadArticles } from '../lib/readArticle';
+import { useAIProvider } from '../components/ui';
 import { titleFromUrl } from '../components/articles';
 
 type Tab = 'sources' | 'notes' | 'files' | 'search';
@@ -114,6 +116,8 @@ function SourceDetail({ id }: { id: string }) {
   const file = useLiveQuery(() => (s?.localFileId ? db.localFiles.get(s.localFileId) : undefined), [s?.localFileId]);
   const online = useOnline();
   const [check, setCheck] = useState('');
+  const [reading, setReading] = useState(false);
+  useAIProvider();
   if (s === undefined) return null;
   if (!s || s.deletedAt) return <Empty>Source introuvable. <a href="#/docs">Retour</a></Empty>;
   const up = async (c: Partial<Source>) => { await db.sources.update(id, { ...c, updatedAt: Date.now() }); for (const i of s.ideaIds) await touchIdea(i); };
@@ -147,6 +151,12 @@ function SourceDetail({ id }: { id: string }) {
       <div className="row wrap" style={{ marginTop: 10 }}>
         {s.url && <a className="btn sm" href={s.url} target="_blank" rel="noreferrer">Ouvrir le lien ↗</a>}
         {s.url && <button className="btn sm ghost" disabled={!online} onClick={testLink}>Tester le lien</button>}
+        {s.url && canReadArticles() && <button className="btn sm primary" disabled={!online || reading} onClick={async () => {
+          setReading(true); setCheck('Gemini lit l’article…');
+          try { const r = await readArticle(s, ideas.find((i) => s.ideaIds.includes(i.id))); setCheck(`Résumé ✓ — notes créées (${r.digest.quotes?.length ?? 0} citation(s), ${r.digest.facts?.length ?? 0} fait(s)).`); go(`docs/note/${r.noteId}`); }
+          catch (e: any) { setCheck(e?.message ?? String(e)); }
+          setReading(false);
+        }}>{reading ? 'Lecture…' : '✦ Résumer avec Gemini'}</button>}
         {!online && s.url && <span className="small muted">Hors ligne : la page n’est pas consultable (seules tes notes et documents importés le sont).</span>}
       </div>
       {check && <p className="small muted">{check}</p>}

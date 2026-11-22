@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useIdeas, useSources, useFormats, useSettings } from '../hooks';
 import type { Idea, Source } from '../types';
 import { statusRank } from '../types';
-import { ArticleRow, AddArticle, ReadProgress, STATE_ICON } from '../components/articles';
+import { ArticleRow, AddArticle, ReadProgress, STATE_ICON, SummarizeAll } from '../components/articles';
 import { ageTone } from '../lib/aging';
 import { Empty } from '../components/ui';
 
@@ -114,6 +114,7 @@ function FolderCard({ ctx, idea, items, dim = false }: { ctx: Ctx; idea: Idea; i
         {items.length > 0 && <div style={{ width: 130 }}><ReadProgress sources={items} /></div>}
       </header>
       {shown.length > 0 && <div className="folder-list">{shown.map((s) => <ArticleRow key={s.id} s={s} ideas={ctx.ideas} currentIdeaId={idea.id} />)}</div>}
+      <SummarizeAll items={items} idea={idea} />
       <details className="folder-add" open={!items.length}><summary>+ Ajouter un article à ce dossier</summary><AddArticle ideaId={idea.id} compact /></details>
     </section>
   );

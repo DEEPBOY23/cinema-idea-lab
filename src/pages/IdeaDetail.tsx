@@ -14,7 +14,7 @@ import { buildPrompt } from '../lib/prompts';
 import { FormatSuggestionsPanel, useMemory, runSuggest } from '../components/assist';
 import { useAIProvider } from '../components/ui';
 import { useRef } from 'react';
-import { ArticleRow, AddArticle, ReadProgress } from '../components/articles';
+import { ArticleRow, AddArticle, ReadProgress, SummarizeAll } from '../components/articles';
 import { useIdeas } from '../hooks';
 
 const LEVELS: { id: ResearchLevelId; label: string; hint: string }[] = [
@@ -162,6 +162,7 @@ export default function IdeaDetail({ id }: { id: string }) {
         {iSources.length ? (
           <div className="folder-list">{iSources.map((s) => <ArticleRow key={s.id} s={s} ideas={allIdeas} currentIdeaId={id} />)}</div>
         ) : <p className="muted small">Aucun article pour l’instant. La documentation passe avant l’écriture : colle ci-dessous les liens que tu trouves.</p>}
+        <div className="row wrap" style={{ marginTop: 8 }}><SummarizeAll items={iSources} idea={idea} /></div>
         <div style={{ marginTop: 10 }}><AddArticle ideaId={id} /></div>
         <div className="row wrap" style={{ marginTop: 8 }}>
           <a className="btn sm ghost" href={`#/docs?idea=${id}&tab=search`}>Chercher des articles</a>

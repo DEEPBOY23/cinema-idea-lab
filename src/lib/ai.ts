@@ -134,7 +134,7 @@ async function openAIChat(system: string, user: string, json: boolean, signal?: 
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
 const G_EXCLUDE = /(embed|tts|image|imagen|vision|live|audio|native|aqa|learnlm|gemma|veo|robotics|computer|exp|preview|thinking)/i;
 
-function geminiError(status: number, body: any): Error {
+export function geminiError(status: number, body: any): Error {
   const msg: string = body?.error?.message ?? '';
   const reason: string = body?.error?.details?.find((d: any) => d.reason)?.reason ?? '';
   if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) return new Error('Clé Gemini refusée : vérifie-la sur Google AI Studio (aistudio.google.com).');
@@ -176,10 +176,10 @@ export function rankGeminiModels(ids: string[]): string[] {
 }
 export const pickGeminiModel = (ids: string[]) => rankGeminiModels(ids)[0] ?? '';
 
-class Timeout extends Error { constructor() { super('timeout'); this.name = 'Timeout'; } }
+export class Timeout extends Error { constructor() { super('timeout'); this.name = 'Timeout'; } }
 
 /** Appel brut avec délai maximum ; combine l'annulation de l'utilisateur et le délai. */
-async function geminiFetch(model: string, apiKey: string, body: unknown, ms: number, signal?: AbortSignal) {
+export async function geminiFetch(model: string, apiKey: string, body: unknown, ms: number, signal?: AbortSignal) {
   const ctl = new AbortController();
   const onAbort = () => ctl.abort();
   signal?.addEventListener('abort', onAbort);
