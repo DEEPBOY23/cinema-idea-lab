@@ -5,3 +5,4 @@ dist
 dexie-cloud.json
 dexie-cloud.key
 tsconfig.tsbuildinfo
+.claude

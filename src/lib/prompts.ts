@@ -61,11 +61,11 @@ export function ideaContext(c: PromptCtx): string {
 }
 
 export const MODE_INFO: Record<WorkshopMode, { label: string; intro: string }> = {
-  inspiration: { label: 'Inspiration documentaire', intro: 'Explorer une œuvre, une technique ou un format : ressources et questions d’abord.' },
-  development: { label: 'Développement d’idée', intro: 'De ton intuition à une structure, étape par étape. Pas de script automatique.' },
-  diagnostic: { label: 'Diagnostic éditorial', intro: 'Analyser un script sans le modifier.' },
-  writing: { label: 'Écriture assistée', intro: 'Uniquement sur demande explicite.' },
-  challenge: { label: 'Challenge mon idée', intro: 'Examen constructif de l’angle, sans contradiction artificielle.' },
+  inspiration: { label: 'Trouver des sources', intro: 'Trouve quoi lire et regarder sur un film ou une technique, avant d’avoir une idée précise.' },
+  development: { label: 'Construire mon idée', intro: 'Pars de ton intuition et avance pas à pas : angle, infos manquantes, structure.' },
+  diagnostic: { label: 'Relire mon script', intro: 'Colle ton script : tu vois ce qui marche et ce qui manque. Rien n’est réécrit.' },
+  writing: { label: 'Écrire avec aide', intro: 'Seulement si tu le demandes : rédiger, reformuler un passage, comparer deux versions.' },
+  challenge: { label: 'Tester mon idée', intro: 'Vérifie si ton angle tient la route : original, prouvé, intéressant ?' },
   compat: { label: 'Compatibilité œuvre / format', intro: '' },
   deepen: { label: 'Approfondir un point', intro: '' },
   alternatives: { label: 'Alternatives parmi mes films vus', intro: '' },
