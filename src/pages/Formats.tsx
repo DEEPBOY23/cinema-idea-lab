@@ -122,7 +122,7 @@ function AssociateModal({ open, onClose, f }: { open: boolean; onClose: () => vo
           <>
             <div className="card">
               <h3>Compatibilité œuvre / format</h3>
-              <p className="muted small">L’app ne juge pas à ta place. Évalue toi-même, ou fais évaluer par Claude avec le prompt ci-dessous (il commence par des pistes documentaires, pas par un script).</p>
+              <p className="muted small">L’app ne juge pas à ta place. Évalue toi-même, ou fais évaluer par l’assistant ci-dessous (il commence par des pistes documentaires, pas par un script).</p>
               <div className="chips" style={{ margin: '8px 0' }}>
                 {(Object.keys(COMPAT_LABELS) as CompatRating[]).map((r) => <button key={r} className={`chip ${rating === r ? 'on' : ''}`} onClick={() => setRating(r)}>{COMPAT_LABELS[r]}</button>)}
               </div>

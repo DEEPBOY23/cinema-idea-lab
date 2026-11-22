@@ -104,17 +104,15 @@ function InboxCard({ it, rank, memory, onConvert, onConvertStay }: { it: InboxIt
   const e = it.suggestions?.estimate;
   return (
     <div className="card" style={{ marginTop: 10 }}>
-      <div className="row between" style={{ alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div className="row"><span className="chip on">#{rank}</span>
-            <input defaultValue={it.title} onBlur={(ev) => ev.target.value !== it.title && db.inbox.update(it.id, { title: ev.target.value, updatedAt: Date.now() })} style={{ fontWeight: 600 }} /></div>
-          {it.summary && <p className="small" style={{ margin: '6px 0 0' }}>{it.summary}</p>}
-        </div>
-        <div style={{ textAlign: 'right', minWidth: 90 }}>
-          <b style={{ fontSize: '1.3rem' }}>{e ? `${e.totalHours} h` : '?'}</b>
-          <div className="tiny muted">{e ? `doc ${e.docHours} · tournage ${e.shootHours} · montage ${e.editHours}` : 'non estimé'}</div>
-        </div>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <span className="chip on">#{rank}</span>
+        <input defaultValue={it.title} onBlur={(ev) => ev.target.value !== it.title && db.inbox.update(it.id, { title: ev.target.value, updatedAt: Date.now() })} style={{ fontWeight: 600, flex: 1, minWidth: 0 }} />
       </div>
+      <div className="row wrap" style={{ margin: '8px 0 0', gap: 10, alignItems: 'baseline' }}>
+        <b style={{ fontSize: '1.25rem' }}>{e ? `≈ ${e.totalHours} h` : 'non estimé'}</b>
+        {e && <span className="tiny muted">documentation {e.docHours} h · tournage {e.shootHours} h · montage {e.editHours} h</span>}
+      </div>
+      {it.summary && <p className="small" style={{ margin: '6px 0 0' }}>{it.summary}</p>}
       {e && <p className="small muted" style={{ margin: '6px 0' }}>Recherche {LEVEL[e.level]} — {e.why}</p>}
       <div className="chips" style={{ margin: '6px 0' }}>
         {it.suggestions?.formats.map((f) => {

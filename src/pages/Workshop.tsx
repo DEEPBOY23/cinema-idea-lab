@@ -23,7 +23,7 @@ export default function Workshop({ query }: { query: URLSearchParams }) {
   const idea = ideas.find((i) => i.id === ideaId);
   return (
     <div>
-      <div className="page-head"><div><h1>Atelier éditorial</h1><p className="muted small">Documentation → réflexion → angle → structure → script facultatif. L’app fonctionne sans IA ; Claude est un appui facultatif : par copier-coller, ou par envoi direct si tu as ajouté une clé API (Paramètres).</p></div></div>
+      <div className="page-head"><div><h1>Atelier éditorial</h1><p className="muted small">Documentation → réflexion → angle → structure → script facultatif. L’app fonctionne sans IA ; l’assistant (Gemini, gratuit) répond directement dans l’app une fois sa clé ajoutée dans Paramètres. Le copier-coller reste possible.</p></div></div>
       <div className="seg" style={{ marginBottom: 12 }}>{MODES.map((m) => <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{MODE_INFO[m].label}</button>)}</div>
       <p className="muted small">{MODE_INFO[mode].intro}</p>
       <div className="row" style={{ margin: '10px 0 16px' }}>
@@ -106,7 +106,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
         <div className="stack">
           <ObsField idea={idea} />
           <div className="card"><h3>Quel format ?</h3><FormatSuggestionsPanel idea={idea} /></div>
-          <p className="muted small">Étape suivante : demander 2 ou 3 angles différents (à Claude), ou les écrire toi-même.</p>
+          <p className="muted small">Étape suivante : demander 2 ou 3 angles différents à l’assistant, ou les écrire toi-même.</p>
           <button className="btn" onClick={() => setStep(1)}>Continuer →</button>
         </div>
       )}
@@ -121,7 +121,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
         <div className="stack">
           <label className="field"><span className="field-label">Informations manquantes</span>
             <textarea rows={4} defaultValue={idea.missingInfo} onBlur={(e) => e.target.value !== idea.missingInfo && updateIdea(idea.id, { missingInfo: e.target.value })} /></label>
-          <details><summary className="small">Demander à Claude ce qui manque</summary>
+          <details><summary className="small">Demander à l’assistant ce qui manque</summary>
             <PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'missing' })} importLabel="Ajouter aux infos manquantes"
               onImport={(r) => updateIdea(idea.id, { missingInfo: [idea.missingInfo, parseList(r).map((x) => `- ${x}`).join('\n')].filter(Boolean).join('\n') })} />
           </details>
@@ -134,7 +134,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
           <p className="small">Construis la structure dans la fiche (tu peux partir d’une structure du format), ou demande une proposition à importer.</p>
           {idea.structure.length > 0 && <ol className="small">{idea.structure.map((b) => <li key={b.id}>{b.label} ({b.seconds} s){b.content && <span className="muted"> — {b.content}</span>}</li>)}</ol>}
           <a className="btn sm" href={`#/ideas/${idea.id}`}>Éditer la structure dans la fiche</a>
-          <details><summary className="small">Proposition de structure par Claude</summary>
+          <details><summary className="small">Proposition de structure par l’assistant</summary>
             <PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'structure' })} importLabel="Importer comme structure (l’ancienne est gardée en version)" onImport={importStructure} />
           </details>
           <button className="btn" onClick={() => setStep(5)}>Continuer →</button>
@@ -221,7 +221,7 @@ function Diagnostic({ idea }: { idea?: Idea }) {
           {a.paragraphs.length > 1 && <div className="small">{a.paragraphs.map((p, i) => <div key={i} className="bar-row"><span className="muted">§{i + 1} {p.preview.slice(0, 18)}…</span><div className="progress"><i style={{ width: `${Math.min(100, (p.seconds / Math.max(1, a.seconds)) * 100)}%` }} /></div><span>{p.seconds} s</span></div>)}</div>}
         </div>
       )}
-      <div><span className="field-label">Analyse par Claude, portée :</span>
+      <div><span className="field-label">Analyse par l’assistant, portée :</span>
         <div className="seg">{([['all', 'Tout'], ['hook', 'Hook'], ['structure', 'Structure'], ['fond', 'Fond'], ['rythme', 'Rythme']] as [DiagFocus, string][]).map(([k, l]) => <button key={k} className={focus === k ? 'on' : ''} onClick={() => setFocus(k)}>{l}</button>)}</div></div>
       {text.trim() && <PromptBox mode="diagnostic" ideaId={idea?.id} input={text} prompt={buildPrompt('diagnostic', ctx, text, { focus })} />}
     </div>

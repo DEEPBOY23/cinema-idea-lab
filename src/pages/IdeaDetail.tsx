@@ -343,7 +343,7 @@ function ReferenceCheck({ idea, iWorks, allWorks, ctx }: { idea: Idea; iWorks: W
             const sameDir = seen.filter((s) => u.director && s.director && s.director.toLowerCase() === u.director.toLowerCase());
             return sameDir.length ? <p key={u.id}>Même réalisateur, déjà vu : {sameDir.map((s) => s.title).join(', ')} — à évaluer.</p> : null;
           })}
-          <details><summary>Demander des alternatives à Claude (sans spoiler)</summary>
+          <details><summary>Demander des alternatives à l’assistant (sans spoiler)</summary>
             <PromptBox mode="alternatives" ideaId={idea.id} input={unseen.map((w) => w.title).join(', ')}
               prompt={buildPrompt('alternatives', ctx, unseen.map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}`).join(', '))}
               onImport={(r) => addJournal(`Alternatives proposées pour ${unseen.map((w) => w.title).join(', ')} :\n${r.slice(0, 600)}`, idea.id)} />
