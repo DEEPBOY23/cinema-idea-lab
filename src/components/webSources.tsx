@@ -61,8 +61,9 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
     for (const s of res.sources) {
       if (!checked[s.url] || existing.some((e) => e.url === s.url)) continue;
       await createSource({
-        url: s.url, title: s.title, access: 'unverified', state: 'toread',
-        interest: s.note ? `Trouvée par recherche Google (${s.note}).` : 'Trouvée par recherche Google.',
+        url: s.url, access: 'unverified', state: 'toread',
+        interest: s.note ? `${s.note} (trouvée par recherche Google)` : 'Trouvée par recherche Google.',
+        title: /grounding-api-redirect/.test(s.url) ? `Résultat sur ${s.title}` : s.title,
         ideaIds: idea ? [idea.id] : [], workIds: idea?.workIds ?? [],
       });
       n++;
@@ -90,8 +91,9 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
               <label key={s.url} className="row" style={{ alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
                 <input type="checkbox" disabled={dup} checked={!!checked[s.url] && !dup} onChange={(e) => setChecked({ ...checked, [s.url]: e.target.checked })} style={{ marginTop: 4 }} />
                 <span className="small" style={{ flex: 1 }}>
-                  <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a>
-                  <span className="muted tiny"> · {/grounding-api-redirect/.test(s.url) ? 'lien de redirection Google' : host}{dup ? ' · déjà dans ta documentation' : ''}</span>
+                  <a href={s.url} target="_blank" rel="noreferrer">{/grounding-api-redirect/.test(s.url) ? `Résultat sur ${s.title}` : s.title}</a>
+                  <span className="muted tiny"> · {/grounding-api-redirect/.test(s.url) ? `${s.title} (lien Google)` : host}{dup ? ' · déjà dans ta documentation' : ''}</span>
+                  {s.note && <span className="tiny muted" style={{ display: 'block' }}>{s.note}</span>}
                 </span>
               </label>
             );

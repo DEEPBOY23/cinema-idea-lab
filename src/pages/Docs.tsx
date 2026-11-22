@@ -366,14 +366,14 @@ function SearchHelper({ ideaId }: { ideaId?: string }) {
   const online = useOnline();
   return (
     <div className="stack">
-      <p className="note small">Aucune API de recherche gratuite sans clé n’est intégrée : l’app prépare des requêtes ciblées qui s’ouvrent dans ton navigateur, et un prompt pour Claude. Importe ensuite les liens trouvés (bouton « + Source » → import multiple).</p>
+      <p className="note small">Avec Gemini en offre payante, « Chercher des sources » trouve de vraies pages sur Google. Sinon, utilise les liens de recherche tout prêts, puis range les liens trouvés (bouton « + Source » ou onglet Articles).</p>
       <select value={sel} onChange={(e) => setSel(e.target.value)}><option value="">— Recherche libre —</option>{ideas.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}</select>
       <label className="field"><span className="field-label">Requête</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ex. Roger Deakins lighting interview" /></label>
       <WebSourceFinder subject={q} idea={idea} />
       <p className="small muted" style={{ margin: '4px 0' }}>Ou cherche toi-même :</p>
       <div className="row wrap">{searchLinks(q).map((l) => <a key={l.label} className={`btn sm ${online ? '' : 'ghost'}`} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}</div>
       {!online && <p className="small muted">Hors ligne : les liens s’ouvriront quand la connexion reviendra.</p>}
-      <h3 style={{ marginTop: 14 }}>Inspiration documentaire avec Claude</h3>
+      <h3 style={{ marginTop: 14 }}>Inspiration documentaire (prompt pour l’IA)</h3>
       <PromptBox mode="inspiration" ideaId={idea?.id} input={q} importLabel="Enregistrer et importer les liens"
         prompt={buildPrompt('inspiration', { idea, works, formats, sources, notes, settings }, '', { subject: q || idea?.title })}
         onImport={async (r) => {

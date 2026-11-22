@@ -296,11 +296,23 @@ export async function searchWebSources(prompt: string, signal?: AbortSignal): Pr
       const h = host(url);
       if (h && [...googleDomains].some((d) => h === d || h.endsWith('.' + d))) {
         const line = (text.split('\n') as string[]).find((l: string) => l.includes(url)) ?? '';
-        written.push({ url, title: line.replace(url, '').replace(/^[-*•\d.)\s]+/, '').replace(/[\s—–:-]+$/, '').slice(0, 140) || h, viaGoogle: true, note: 'lien direct cité par Gemini, site confirmé par Google' });
+        // Ligne « - Titre — Média — URL — apport » : titre = 1er morceau, le reste en note.
+        const parts = line.replace(url, '').replace(/^[-*•\d.)\s]+/, '').split(/\s+[—–]\s+|\s+-\s+/).map((x: string) => x.replace(/^[\s*_"«]+|[\s*_"»:]+$/g, '').trim()).filter(Boolean);
+        const title = (parts[0] || h).slice(0, 140);
+        const note = parts.slice(1).join(' · ').slice(0, 220);
+        written.push({ url, title, viaGoogle: true, note: note || undefined });
       }
     }
+    // Sans doublon : un lien direct l'emporte sur la redirection Google du même site ; une seule redirection par site.
+    const directDomains = new Set(written.map((w) => host(w.url)));
+    const seenDom = new Set<string>();
+    const redirects = chunks.filter((c) => {
+      const d = c.title.includes('.') ? c.title.replace(/^www\./, '') : host(c.url);
+      if (directDomains.has(d) || seenDom.has(d)) return false;
+      seenDom.add(d); return true;
+    });
     const seen = new Set<string>();
-    const sources = [...written, ...chunks].filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
+    const sources = [...written, ...redirects].filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
     return { text, sources, queries: gm.webSearchQueries ?? [], model: j.modelVersion ?? model };
   }
   if (quotaRefusals > 0) { setGroundingRefused(true); throw new Error(GROUNDING_REFUSED_MSG); }
