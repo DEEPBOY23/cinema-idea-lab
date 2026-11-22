@@ -37,9 +37,10 @@ describe('réponses de l’IA', () => {
     expect(pickDefaultModel(['gpt-9-mini', 'gpt-9', 'gpt-8'])).toBe('gpt-9');
     expect(pickDefaultModel([])).toBe('');
   });
-  it('Gemini : flash stable le plus récent, ni pro, ni preview', () => {
-    expect(pickGeminiModel(['gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-001'])).toBe('gemini-2.5-flash');
-    expect(pickGeminiModel(['gemini-3-flash', 'gemini-2.5-flash'])).toBe('gemini-3-flash');
+  it('Gemini : préfère les modèles stables qui répondent sur l’offre gratuite', () => {
+    expect(pickGeminiModel(['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-3.5-flash', 'gemini-flash-latest'])).toBe('gemini-3.5-flash');
+    expect(pickGeminiModel(['gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'])).toBe('gemini-flash-latest');
+    expect(pickGeminiModel(['gemini-2.5-pro', 'gemini-2.5-flash'])).toBe('gemini-2.5-flash');
     expect(pickGeminiModel([])).toBe('');
   });
   it('mémoire transmise : films vus et derniers choix, jamais les non-vus comme vus', () => {

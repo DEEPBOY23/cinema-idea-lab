@@ -8,7 +8,7 @@ import { Section } from '../components/ui';
 import { fmtDateTime } from '../lib/util';
 import { DEFAULT_SYNC_URL } from '../config';
 import { getClaudeConfig, setClaudeConfig, clearClaudeConfig, testClaudeKey, CLAUDE_MODELS } from '../lib/claude';
-import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickDefaultModel, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, listGeminiModels, pickGeminiModel } from '../lib/ai';
+import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickDefaultModel, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, probeGeminiModels } from '../lib/ai';
 import { useAIProvider } from '../components/ui';
 
 export default function SettingsPage() {
@@ -248,7 +248,7 @@ function AssistantSection() {
   const online = useOnline();
   const gc = getGeminiConfig();
   const [gkey, setGkey] = useState(gc.apiKey);
-  const [gmodels, setGmodels] = useState<string[]>(gc.model ? [gc.model] : []);
+  const [gmodels, setGmodels] = useState<string[]>(gc.models?.length ? gc.models : gc.model ? [gc.model] : []);
   const [gmodel, setGmodel] = useState(gc.model);
   const oc = getOpenAIConfig();
   const [okey, setOkey] = useState(oc.apiKey);
@@ -262,12 +262,11 @@ function AssistantSection() {
   const connectGemini = async () => {
     setMsg('Connexion à Gemini…');
     try {
-      const ids = await listGeminiModels(gkey.trim());
-      if (!ids.length) { setMsg('Clé valide, mais aucun modèle Gemini de texte disponible pour ce compte.'); return; }
-      const m = gmodel && ids.includes(gmodel) ? gmodel : pickGeminiModel(ids);
-      setGmodels(ids); setGmodel(m);
-      setGeminiConfig({ apiKey: gkey.trim(), model: m }); setProvider('gemini');
-      setMsg(`Connecté à Gemini (${m}). L’assistant est actif dans toute l’app.`);
+      const ok = await probeGeminiModels(gkey.trim(), setMsg);
+      if (!ok.length) { setMsg('Clé valide, mais aucun modèle Gemini n’a répondu (surcharge ?). Réessaie dans quelques minutes.'); return; }
+      setGmodels(ok); setGmodel(ok[0]);
+      setGeminiConfig({ apiKey: gkey.trim(), model: ok[0], models: ok }); setProvider('gemini');
+      setMsg(`Connecté à Gemini. ${ok.length} modèle${ok.length > 1 ? 's répondent' : ' répond'} ; principal : ${ok[0]}. Si l’un est surchargé, l’app passe automatiquement au suivant.`);
     } catch (e: any) { setMsg(e?.message ?? String(e)); }
   };
   const connectOpenAI = async () => {
@@ -295,8 +294,8 @@ function AssistantSection() {
         </ol>
         <input type="password" autoComplete="off" value={gkey} onChange={(e) => setGkey(e.target.value)} placeholder="Clé Gemini (AIza…)" />
         {gmodels.length > 1 && (
-          <label className="field"><span className="field-label">Modèle (choisi automatiquement)</span>
-            <select value={gmodel} onChange={(e) => { setGmodel(e.target.value); setGeminiConfig({ apiKey: gkey.trim(), model: e.target.value }); }}>{gmodels.map((m) => <option key={m}>{m}</option>)}</select></label>
+          <label className="field"><span className="field-label">Modèle principal (parmi ceux qui ont répondu au test)</span>
+            <select value={gmodel} onChange={(e) => { setGmodel(e.target.value); setGeminiConfig({ apiKey: gkey.trim(), model: e.target.value, models: gmodels }); }}>{gmodels.map((m) => <option key={m}>{m}</option>)}</select></label>
         )}
         <div className="row wrap" style={{ marginTop: 8 }}>
           <button className="btn primary" disabled={!gkey.trim() || !online} onClick={connectGemini}>Connecter</button>

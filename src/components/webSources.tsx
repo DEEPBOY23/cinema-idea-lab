@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { Idea } from '../types';
-import { searchWebSources, groundingAvailable, type GroundedResult } from '../lib/ai';
+import { searchWebSources, groundingAvailable, groundingRefused, GROUNDING_REFUSED_MSG, type GroundedResult } from '../lib/ai';
 import { createSource } from '../lib/actions';
 import { useAIProvider } from './ui';
 import { useSources, useWorks, useFormats } from '../hooks';
@@ -21,7 +21,18 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
     return <p className="small muted">Recherche web automatique : branche <a href="#/settings">Gemini (gratuit)</a> dans Paramètres. En attendant, utilise les liens de recherche ci-dessous.</p>;
   }
 
-  const run = async () => {
+  if (groundingRefused() && !res && !busy) {
+    return (
+      <div className="card">
+        <h3 style={{ margin: 0 }}>Vraies sources sur le web</h3>
+        <p className="small muted" style={{ margin: '6px 0' }}>{GROUNDING_REFUSED_MSG}</p>
+        <button className="btn sm ghost" onClick={() => { try { localStorage.removeItem('cil.grounding'); } catch { /* */ } run(); }}>Réessayer quand même</button>
+        {msg && <p className="small">{msg}</p>}
+      </div>
+    );
+  }
+
+  async function run() {
     const iw = works.filter((w) => idea?.workIds.includes(w.id)).map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}${w.director ? `, ${w.director}` : ''}`);
     const fmt = formats.find((f) => f.id === idea?.formatId);
     const prompt = [
@@ -42,7 +53,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
       setMsg(e?.name === 'AbortError' ? 'Recherche annulée.' : (e?.message ?? String(e)));
     }
     setBusy(false);
-  };
+  }
 
   const add = async () => {
     if (!res) return;

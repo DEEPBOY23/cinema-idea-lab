@@ -17,7 +17,7 @@ export function setOpenAIConfig(c: OpenAIConfig) { localStorage.setItem(OKEY, JS
 export function clearOpenAIConfig() { localStorage.removeItem(OKEY); notify(); }
 
 // ---- Gemini (Google) : fournisseur par défaut, clé gratuite sur Google AI Studio ----
-export interface GeminiConfig { apiKey: string; model: string }
+export interface GeminiConfig { apiKey: string; model: string; models?: string[] }
 const GKEY = 'cil.gemini';
 export function getGeminiConfig(): GeminiConfig {
   try { const r = localStorage.getItem(GKEY); if (r) return JSON.parse(r); } catch { /* indisponible */ }
@@ -114,6 +114,7 @@ function geminiError(status: number, body: any): Error {
   const reason: string = body?.error?.details?.find((d: any) => d.reason)?.reason ?? '';
   if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(msg)) return new Error('Clé Gemini refusée : vérifie-la sur Google AI Studio (aistudio.google.com).');
   if (status === 429) return new Error('Limite gratuite de Gemini atteinte pour le moment. Réessaie plus tard, ou utilise le tri simple.');
+  if (status === 503) return new Error('Gemini est surchargé en ce moment. Réessaie dans quelques minutes.');
   if (status === 403) return new Error('Accès refusé par Google pour cette clé (pays, compte ou API non activée).');
   if (status === 404) return new Error('Ce modèle Gemini n’est pas disponible avec ta clé. Reconnecte-toi dans Paramètres pour en choisir un autre.');
   return new Error(`Erreur Gemini ${status} : ${msg}`);
@@ -133,79 +134,127 @@ export async function listGeminiModels(apiKey: string): Promise<string[]> {
     .sort();
 }
 
-/** Par défaut : le « flash » stable le plus récent (rapide, et le plus généreux en accès gratuit). */
-export function pickGeminiModel(ids: string[]): string {
+/** Ordre de préférence (testé avec une clé gratuite, nov. 2026) : les alias stables « flash » d'abord ;
+ * les modèles les plus récents peuvent ne pas répondre sur l'offre gratuite. */
+export function rankGeminiModels(ids: string[]): string[] {
   const score = (id: string) => {
     const v = parseFloat((id.match(/^gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? '0');
-    let s = v * 100;
-    if (/flash/.test(id) && !/lite/.test(id)) s += 20;
-    else if (/lite/.test(id)) s += 5;
-    if (/pro/.test(id)) s -= 10; // accès gratuit souvent très limité
-    if (/-\d{3}$|\d{2}-\d{2}/.test(id)) s -= 3; // préférer l'alias stable
-    if (/latest/.test(id)) s -= 1;
+    let s = 0;
+    if (id === 'gemini-3.5-flash') s = 1000;
+    else if (id === 'gemini-flash-latest') s = 990;
+    else if (id === 'gemini-flash-lite-latest') s = 980;
+    else s = v * 10 + (/flash/.test(id) && !/lite/.test(id) ? 5 : 0) + (/lite/.test(id) ? 2 : 0) - (/pro/.test(id) ? 50 : 0);
+    if (/-\d{3}$|\d{2}-\d{2}/.test(id)) s -= 3;
     return s;
   };
-  return [...ids].sort((a, b) => score(b) - score(a))[0] ?? '';
+  return [...ids].sort((a, b) => score(b) - score(a));
+}
+export const pickGeminiModel = (ids: string[]) => rankGeminiModels(ids)[0] ?? '';
+
+class Timeout extends Error { constructor() { super('timeout'); this.name = 'Timeout'; } }
+
+/** Appel brut avec délai maximum ; combine l'annulation de l'utilisateur et le délai. */
+async function geminiFetch(model: string, apiKey: string, body: unknown, ms: number, signal?: AbortSignal) {
+  const ctl = new AbortController();
+  const onAbort = () => ctl.abort();
+  signal?.addEventListener('abort', onAbort);
+  let timedOut = false;
+  const t = setTimeout(() => { timedOut = true; ctl.abort(); }, ms);
+  try {
+    const r = await fetch(`${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST', signal: ctl.signal, headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    return { r, j };
+  } catch (e: any) {
+    if (timedOut) throw new Timeout();
+    if (e?.name === 'AbortError') throw e;
+    throw new Error('Hors ligne : Gemini n’est pas joignable. Le tri simple et le copier-coller restent disponibles.');
+  } finally { clearTimeout(t); signal?.removeEventListener('abort', onAbort); }
+}
+
+/** Teste réellement les modèles (petite question) et garde ceux qui répondent, dans l'ordre de préférence. */
+export async function probeGeminiModels(apiKey: string, onProgress?: (msg: string) => void): Promise<string[]> {
+  const ids = await listGeminiModels(apiKey);
+  const candidates = rankGeminiModels(ids).filter((id) => !/pro/.test(id)).slice(0, 6);
+  onProgress?.(`Test de ${candidates.length} modèles Gemini…`);
+  const results = await Promise.all(candidates.map(async (m) => {
+    try {
+      const { r } = await geminiFetch(m, apiKey, { contents: [{ role: 'user', parts: [{ text: 'Réponds juste : ok' }] }] }, 25_000);
+      return r.ok ? m : null;
+    } catch { return null; }
+  }));
+  return candidates.filter((m, i) => results[i] === m);
 }
 
 async function geminiChat(system: string, user: string, json: boolean, signal?: AbortSignal): Promise<{ text: string; model: string }> {
-  const cfg = getGeminiConfig();
+  let cfg = getGeminiConfig();
   if (!cfg.apiKey) throw new Error('Aucune clé Gemini configurée (Paramètres → Assistant IA).');
-  let model = cfg.model;
-  if (!model) { model = pickGeminiModel(await listGeminiModels(cfg.apiKey)); setGeminiConfig({ ...cfg, model }); }
-  let r: Response;
-  try {
-    r = await fetch(`${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST', signal,
-      headers: { 'x-goog-api-key': cfg.apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: user }] }],
-        ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
-      }),
-    });
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw e;
-    throw new Error('Hors ligne : Gemini n’est pas joignable. Le tri simple et le copier-coller restent disponibles.');
+  if (!cfg.models?.length) {
+    const ok = await probeGeminiModels(cfg.apiKey);
+    if (!ok.length) throw new Error('Aucun modèle Gemini ne répond pour le moment avec ta clé. Réessaie plus tard.');
+    cfg = { ...cfg, model: ok[0], models: ok }; setGeminiConfig(cfg);
   }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw geminiError(r.status, j);
-  if (j.promptFeedback?.blockReason) throw new Error('Gemini a bloqué cette demande. Reformule ou utilise le copier-coller.');
-  const cand = j.candidates?.[0];
-  const text = (cand?.content?.parts ?? []).map((p: any) => (p.thought ? '' : p.text ?? '')).join('').trim();
-  if (!text) throw new Error(cand?.finishReason === 'SAFETY' ? 'Gemini a bloqué cette réponse.' : 'Réponse vide de Gemini. Réessaie.');
-  return { text: cand?.finishReason === 'MAX_TOKENS' ? `${text}\n\n[Réponse coupée]` : text, model: j.modelVersion ?? model };
+  const order = [...new Set([cfg.model, ...(cfg.models ?? [])].filter(Boolean))];
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
+  };
+  let last: Error = new Error('Gemini ne répond pas pour le moment. Réessaie dans quelques minutes.');
+  for (const model of order) {
+    let res;
+    try { res = await geminiFetch(model, cfg.apiKey, body, 90_000, signal); }
+    catch (e: any) { if (e instanceof Timeout) { last = new Error(`Gemini (${model}) n’a pas répondu à temps.`); continue; } throw e; }
+    const { r, j } = res;
+    if (!r.ok) {
+      const err = geminiError(r.status, j);
+      if (/API key|Clé Gemini refusée/.test(err.message)) throw err;
+      last = err;
+      if ([404, 429, 500, 503].includes(r.status)) continue; // surcharge, limite ou modèle retiré : modèle suivant
+      throw err;
+    }
+    if (j.promptFeedback?.blockReason) throw new Error('Gemini a bloqué cette demande. Reformule ou utilise le copier-coller.');
+    const cand = j.candidates?.[0];
+    const text = (cand?.content?.parts ?? []).map((p: any) => (p.thought ? '' : p.text ?? '')).join('').trim();
+    if (!text) { last = new Error(cand?.finishReason === 'SAFETY' ? 'Gemini a bloqué cette réponse.' : 'Réponse vide de Gemini.'); continue; }
+    if (model !== cfg.model) setGeminiConfig({ ...cfg, model }); // garder celui qui marche
+    return { text: cand?.finishReason === 'MAX_TOKENS' ? `${text}\n\n[Réponse coupée]` : text, model: j.modelVersion ?? model };
+  }
+  throw last;
 }
 
 // ---------------- Recherche web réelle (Gemini + Google Search) ----------------
 export interface FoundSource { url: string; title: string; viaGoogle: boolean; note?: string }
 export interface GroundedResult { text: string; sources: FoundSource[]; queries: string[]; model: string }
-// La recherche Google n'est gratuite que sur certains modèles (Gemini 2.5 Flash d'après la doc de Google) :
-// on essaie d'abord celui-ci, puis le modèle choisi.
-const GROUNDING_FREE_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 export const groundingAvailable = () => getProvider() === 'gemini';
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
+const GKEY_GROUNDING = 'cil.grounding';
+/** La recherche Google de Gemini n'est pas incluse dans l'offre gratuite : on mémorise un refus pour prévenir d'emblée. */
+export const groundingRefused = () => { try { return localStorage.getItem(GKEY_GROUNDING) === 'quota'; } catch { return false; } };
+const setGroundingRefused = (v: boolean) => { try { v ? localStorage.setItem(GKEY_GROUNDING, 'quota') : localStorage.removeItem(GKEY_GROUNDING); } catch { /* */ } };
+export const GROUNDING_REFUSED_MSG = 'La recherche Google de Gemini n’est pas incluse dans l’offre gratuite (Google la refuse avec ta clé : quota à zéro). Utilise les liens de recherche ci-dessous ; elle fonctionnera si tu actives un jour la facturation sur Google AI Studio.';
+
 export async function searchWebSources(prompt: string, signal?: AbortSignal): Promise<GroundedResult> {
   const cfg = getGeminiConfig();
   if (!cfg.apiKey) throw new Error('La recherche de sources réelles utilise Gemini : ajoute ta clé dans Paramètres → Assistant IA.');
-  const order = [...new Set([...GROUNDING_FREE_MODELS, cfg.model].filter(Boolean))];
+  const order = [...new Set([cfg.model, ...(cfg.models ?? [])].filter(Boolean))];
   let lastErr: Error | null = null;
-  for (const model of order) {
-    let r: Response;
-    try {
-      r = await fetch(`${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST', signal,
-        headers: { 'x-goog-api-key': cfg.apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }),
-      });
-    } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-      throw new Error('Hors ligne : la recherche de sources demande une connexion.');
+  let quotaRefusals = 0;
+  for (const model of order.slice(0, 3)) {
+    let res;
+    try { res = await geminiFetch(model, cfg.apiKey, { contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }, 90_000, signal); }
+    catch (e: any) { if (e instanceof Timeout) { lastErr = new Error('La recherche n’a pas abouti à temps.'); continue; } throw e; }
+    const { r, j } = res;
+    if (!r.ok) {
+      lastErr = geminiError(r.status, j);
+      if (/API key/i.test(j?.error?.message ?? '')) throw lastErr;
+      if (r.status === 429 && /quota/i.test(j?.error?.message ?? '')) quotaRefusals++;
+      continue;
     }
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { lastErr = geminiError(r.status, j); if (r.status === 400 && /API key/i.test(j?.error?.message ?? '')) throw lastErr; continue; }
+    setGroundingRefused(false);
     const cand = j.candidates?.[0];
     const text = (cand?.content?.parts ?? []).map((p: any) => (p.thought ? '' : p.text ?? '')).join('').trim();
     const gm = cand?.groundingMetadata ?? {};
@@ -228,6 +277,7 @@ export async function searchWebSources(prompt: string, signal?: AbortSignal): Pr
     const sources = [...written, ...chunks].filter((s) => (seen.has(s.url) ? false : (seen.add(s.url), true)));
     return { text, sources, queries: gm.webSearchQueries ?? [], model: j.modelVersion ?? model };
   }
+  if (quotaRefusals > 0) { setGroundingRefused(true); throw new Error(GROUNDING_REFUSED_MSG); }
   throw lastErr ?? new Error('Recherche impossible pour le moment.');
 }
 
