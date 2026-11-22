@@ -11,6 +11,7 @@ import { buildPrompt, searchLinks } from '../lib/prompts';
 import { extractLinks, parseList } from '../lib/text';
 import { fmtDate, fmtDateTime } from '../lib/util';
 import { WebSourceFinder } from '../components/webSources';
+import { titleFromUrl } from '../components/articles';
 
 type Tab = 'sources' | 'notes' | 'files' | 'search';
 
@@ -96,7 +97,7 @@ function NewSourceModal({ open, onClose, ideaId }: { open: boolean; onClose: () 
         <button className="btn" disabled={!extractLinks(bulk).length} onClick={async () => {
           const existing = new Set((await db.sources.toArray()).map((s) => s.url));
           let n = 0;
-          for (const l of extractLinks(bulk)) { if (existing.has(l.url)) continue; await createSource({ url: l.url, title: l.title, ideaIds: ideaId ? [ideaId] : [], access: 'unverified' }); n++; }
+          for (const l of extractLinks(bulk)) { if (existing.has(l.url)) continue; await createSource({ url: l.url, title: (!l.title || /https?:\/\//.test(l.title) ? titleFromUrl(l.url) : l.title), ideaIds: ideaId ? [ideaId] : [], access: 'unverified' }); n++; }
           alert(`${n} source(s) ajoutée(s). Les doublons ont été ignorés. Vérifie chaque lien avant de t’y fier.`);
           setBulk(''); onClose();
         }}>Importer les liens</button>
@@ -378,7 +379,7 @@ function SearchHelper({ ideaId }: { ideaId?: string }) {
         onImport={async (r) => {
           const existing = new Set(sources.map((s) => s.url));
           let n = 0;
-          for (const l of extractLinks(r)) { if (existing.has(l.url)) continue; await createSource({ url: l.url, title: l.title, ideaIds: idea ? [idea.id] : [], access: 'unverified' }); n++; }
+          for (const l of extractLinks(r)) { if (existing.has(l.url)) continue; await createSource({ url: l.url, title: (!l.title || /https?:\/\//.test(l.title) ? titleFromUrl(l.url) : l.title), ideaIds: idea ? [idea.id] : [], access: 'unverified' }); n++; }
           if (n) alert(`${n} lien(s) ajouté(s) aux sources avec le statut « accès non vérifié ». Ouvre-les pour les vérifier.`);
         }} />
     </div>

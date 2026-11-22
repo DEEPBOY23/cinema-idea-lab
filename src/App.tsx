@@ -10,6 +10,7 @@ import Workshop from './pages/Workshop';
 import Films from './pages/Films';
 import Ideas from './pages/Ideas';
 import Inbox from './pages/Inbox';
+import Articles from './pages/Articles';
 import IdeaDetail from './pages/IdeaDetail';
 import Planning from './pages/Planning';
 import Stats from './pages/Stats';
@@ -24,6 +25,7 @@ const NAV = [
   { path: 'atelier', label: 'Atelier', icon: '✎' },
   { path: 'films', label: 'Filmothèque', icon: '▶' },
   { path: 'ideas', label: 'Idées', icon: '◇' },
+  { path: 'articles', label: 'Articles', icon: '❏' },
   { path: 'planning', label: 'Planning', icon: '▤' },
   { path: 'stats', label: 'Statistiques', icon: '∿' },
   { path: 'settings', label: 'Paramètres', icon: '⚙' },
@@ -92,6 +94,7 @@ export default function App() {
   switch (top) {
     case '': page = <Home />; break;
     case 'bac': page = <Inbox />; break;
+    case 'articles': page = <Articles />; break;
     case 'formats': page = <Formats id={path[1]} />; break;
     case 'docs': page = <Docs sub={path[1]} id={path[2]} query={query} />; break;
     case 'atelier': page = <Workshop query={query} />; break;

@@ -14,6 +14,8 @@ import { buildPrompt } from '../lib/prompts';
 import { FormatSuggestionsPanel, useMemory, runSuggest } from '../components/assist';
 import { useAIProvider } from '../components/ui';
 import { useRef } from 'react';
+import { ArticleRow, AddArticle, ReadProgress } from '../components/articles';
+import { useIdeas } from '../hooks';
 
 const LEVELS: { id: ResearchLevelId; label: string; hint: string }[] = [
   { id: 'light', label: 'Légère', hint: 'Une scène ou une technique précise, simple à documenter.' },
@@ -43,6 +45,7 @@ export default function IdeaDetail({ id }: { id: string }) {
   const settings = useSettings();
   const sources = useSources();
   const notes = useNotes();
+  const allIdeas = useIdeas();
   const events = useLiveQuery(() => db.events.where('ideaId').equals(id).sortBy('at'), [id]) ?? [];
   const sessions = (useLiveQuery(() => db.sessions.where('ideaId').equals(id).sortBy('start'), [id]) ?? []).filter((s) => !s.deletedAt);
   const journal = useLiveQuery(() => db.journal.where('ideaId').equals(id).reverse().sortBy('at'), [id]) ?? [];
@@ -154,23 +157,22 @@ export default function IdeaDetail({ id }: { id: string }) {
         <ReferenceCheck idea={idea} iWorks={iWorks} allWorks={works} ctx={ctx} />
       </Section>
 
-      <Section title={`Sources (${iSources.length}) et notes de lecture (${iNotes.length})`} right={<button className="btn sm" onClick={() => setLinkOpen(true)}>Lier</button>}>
+      <Section title={`📁 Articles de cette idée (${iSources.length})`} open right={<button className="btn sm" onClick={() => setLinkOpen(true)}>Lier existants</button>}>
+        {iSources.length > 0 && <div style={{ marginBottom: 8 }}><ReadProgress sources={iSources} /></div>}
         {iSources.length ? (
-          <ul className="list compact">
-            {iSources.map((s) => (
-              <li key={s.id} onClick={() => go(`docs/source/${s.id}`)}><span>{s.title || s.url}</span><span className="muted small">{SOURCE_STATES[s.state]} · {ACCESS_LABELS[s.access]}</span></li>
-            ))}
-          </ul>
-        ) : <p className="muted small">Aucune source liée. La documentation passe avant l’écriture.</p>}
+          <div className="folder-list">{iSources.map((s) => <ArticleRow key={s.id} s={s} ideas={allIdeas} currentIdeaId={id} />)}</div>
+        ) : <p className="muted small">Aucun article pour l’instant. La documentation passe avant l’écriture : colle ci-dessous les liens que tu trouves.</p>}
+        <div style={{ marginTop: 10 }}><AddArticle ideaId={id} /></div>
         <div className="row wrap" style={{ marginTop: 8 }}>
-          <a className="btn sm" href={`#/docs?new=1&idea=${id}`}>+ Ajouter une source</a>
-          <button className="btn sm" onClick={async () => go(`docs/note/${await createNote({ ideaId: id, title: `Notes — ${idea.title}` })}`)}>+ Notes après lecture</button>
-          <a className="btn sm ghost" href={`#/docs?idea=${id}&tab=search`}>Préparer une recherche</a>
+          <a className="btn sm ghost" href={`#/docs?idea=${id}&tab=search`}>Chercher des articles</a>
+          <button className="btn sm ghost" onClick={async () => go(`docs/note/${await createNote({ ideaId: id, title: `Notes — ${idea.title}` })}`)}>+ Notes après lecture</button>
+          <a className="btn sm ghost" href="#/articles">Tous mes dossiers d’articles</a>
         </div>
         {iNotes.length > 0 && (
-          <ul className="list compact" style={{ marginTop: 10 }}>
-            {iNotes.map((n) => <li key={n.id} onClick={() => go(`docs/note/${n.id}`)}><span>{n.title || 'Notes sans titre'}</span><span className="muted small">{fmtDate(n.updatedAt)}</span></li>)}
-          </ul>
+          <>
+            <h3 style={{ marginTop: 12 }}>Notes de lecture</h3>
+            <ul className="list compact">{iNotes.map((n) => <li key={n.id} onClick={() => go(`docs/note/${n.id}`)}><span>{n.title || 'Notes sans titre'}</span><span className="muted small">{fmtDate(n.updatedAt)}</span></li>)}</ul>
+          </>
         )}
       </Section>
 

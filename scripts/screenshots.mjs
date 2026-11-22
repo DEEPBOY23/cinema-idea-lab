@@ -31,6 +31,7 @@ try {
     ['03-formats', '#/formats'],
     ['04-format-color-stories', '#/formats/fmt-color-stories'],
     ['05-idees', '#/ideas'],
+    ['05b-articles', '#/articles'],
     ['06-fiche-idee', `#/ideas/${ids.idea}`],
     ['07-documentation-sources', '#/docs'],
     ['08-documentation-notes', '#/docs?tab=notes'],
@@ -122,7 +123,10 @@ async function seed() {
   const source = { id: id(), title: '[Démo] Exemple de source à vérifier', url: 'https://theasc.com', author: '[Démo] Auteur', media: 'American Cinematographer', date: '2014', type: 'Interview directeur photo', topics: ['couleur', 'palette'], interest: '[Démo] Pourrait confirmer l’intention de palette.', minutes: 15, state: 'reading', access: 'unverified', ideaIds: [main.id], workIds: [her.id], createdAt: now, updatedAt: now };
   await db.sources.bulkAdd([source,
     { ...source, id: id(), title: '[Démo] Analyse de mise en scène', state: 'toread', type: 'Analyse de mise en scène', access: 'verified' },
-    { ...source, id: id(), title: '[Démo] Making-of', state: 'read', type: 'Making-of / BTS' }]);
+    { ...source, id: id(), title: '[Démo] Making-of', state: 'read', type: 'Making-of / BTS' },
+    { ...source, id: id(), title: '[Démo] Le rouge chez Wong Kar-wai', url: 'https://example.org/wkw-rouge', state: 'toread', ideaIds: [scripted.id], workIds: [] },
+    { ...source, id: id(), title: '[Démo] Ralenti et mémoire', url: 'https://example.org/ralenti', state: 'deepen', ideaIds: [scripted.id], workIds: [] },
+    { ...source, id: id(), title: '[Démo] Article à ranger', url: 'https://example.org/a-ranger', state: 'toread', ideaIds: [], workIds: [] }]);
   const note = { id: id(), sourceId: source.id, ideaId: main.id, title: '[Démo] Notes — palette de Her', learned: '[Démo] Ce que j’ai appris en lisant.', surprised: '[Démo] Ce qui m’a surpris.', observations: '[Démo] Mes propres observations.', rewatch: '[Démo] Scène de la plage.', toVerify: '[Démo] Le bleu a-t-il été évité volontairement ?', toDeepen: '[Démo] Lien entre couleur et voix.', claims: [{ id: id(), text: '[Démo] Exemple de fait documenté', nature: 'fact', ref: 'source, p. 2' }, { id: id(), text: '[Démo] Exemple d’interprétation personnelle', nature: 'interpretation', ref: '' }, { id: id(), text: '[Démo] Exemple d’hypothèse', nature: 'hypothesis', ref: '' }], createdAt: now, updatedAt: now };
   await db.notes.add(note);
   await db.leads.bulkAdd([

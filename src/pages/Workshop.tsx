@@ -13,6 +13,7 @@ import { createSource } from '../lib/actions';
 import { useMemory, runSuggest, FormatSuggestionsPanel } from '../components/assist';
 import { useAIProvider } from '../components/ui';
 import { WebSourceFinder } from '../components/webSources';
+import { titleFromUrl } from '../components/articles';
 import { proposeAngles, listMissing, proposeStructure, strengthenWeak, applyTip, type WeakTip } from '../lib/devAssist';
 import type { PromptCtx } from '../lib/prompts';
 
@@ -110,7 +111,7 @@ function Inspiration({ idea }: { idea?: Idea }) {
       <PromptBox mode="inspiration" ideaId={idea?.id} input={subject} prompt={buildPrompt('inspiration', ctx, '', { subject })} importLabel="Enregistrer et importer les liens"
         onImport={async (r) => {
           const existing = new Set(ctx.sources.map((s) => s.url));
-          for (const l of extractLinks(r)) if (!existing.has(l.url)) await createSource({ url: l.url, title: l.title, ideaIds: idea ? [idea.id] : [], access: 'unverified' });
+          for (const l of extractLinks(r)) if (!existing.has(l.url)) await createSource({ url: l.url, title: (!l.title || /https?:\/\//.test(l.title) ? titleFromUrl(l.url) : l.title), ideaIds: idea ? [idea.id] : [], access: 'unverified' });
         }} />
       <p className="muted small">Les liens détectés dans la réponse sont ajoutés aux sources avec le statut « accès non vérifié ».</p>
     </div>

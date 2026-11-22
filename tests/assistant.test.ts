@@ -94,3 +94,12 @@ describe('quoi faire aujourd’hui (sans IA)', () => {
     expect(localToday(60, [], [], BUILTIN_FORMATS, DEFAULT_SETTINGS, [])).toEqual([]);
   });
 });
+
+import { titleFromUrl } from '../src/components/articles';
+describe('articles', () => {
+  it('titre lisible depuis un lien', () => {
+    expect(titleFromUrl('https://www.theasc.com/articles/her-hoyte-van-hoytema-interview')).toBe('Her hoyte van hoytema interview · theasc.com');
+    expect(titleFromUrl('https://example.org/')).toBe('example.org');
+    expect(titleFromUrl('https://site.fr/2024/12345')).toBe('site.fr');
+  });
+});
