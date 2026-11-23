@@ -65,6 +65,7 @@ export interface Idea {
   paused: boolean;
   plannedWeek?: string; // 'YYYY-Www'
   suggestions?: Suggestions; // formats proposés (IA ou règles locales)
+  favorite?: boolean;
   comments: Comment[];
   deletedAt?: number;
 }
@@ -85,7 +86,7 @@ export interface TimeSession { id: string; ideaId: string; phase: Phase; start: 
 export type Seen = 'seen' | 'partial' | 'unseen';
 export interface Work {
   id: string; title: string; year?: number; director: string; kind: 'film' | 'serie';
-  seen: Seen; seenDate?: string; notes: string; scenes: string;
+  seen: Seen; seenDate?: string; notes: string; scenes: string; favorite?: boolean;
   createdAt: number; updatedAt: number; deletedAt?: number;
 }
 
@@ -152,6 +153,7 @@ export interface Settings {
   styleProfile: string;
   spoilers: 'avoid' | 'ok';
   wpm: number; // mots par minute à l'oral
+  workspaceName?: string;
   updatedAt: number;
 }
 

@@ -12,6 +12,8 @@ import { extractLinks } from '../lib/text';
 import { createSource } from '../lib/actions';
 import { useMemory, runSuggest, FormatSuggestionsPanel } from '../components/assist';
 import { useAIProvider } from '../components/ui';
+import { Layers, Lightbulb, FileText, WandSparkles, Target, ExternalLink, Clapperboard, Play, Zap, ListChecks, Check } from 'lucide-react';
+import { FIT_LABELS } from '../types';
 import { WebSourceFinder } from '../components/webSources';
 import { titleFromUrl } from '../components/articles';
 import { proposeAngles, listMissing, proposeStructure, strengthenWeak, applyTip, type WeakTip } from '../lib/devAssist';
@@ -62,7 +64,7 @@ function WeakStep({ idea, ctx, aiOn, onNext }: { idea: Idea; ctx: PromptCtx; aiO
         </div>
       ))}
       <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'weak' })} /></Fallback>
-      <button className="btn" onClick={onNext}>Continuer →</button>
+      <button className="btn primary" onClick={onNext}>Continuer →</button>
     </div>
   );
 }
@@ -77,23 +79,108 @@ export default function Workshop({ query }: { query: URLSearchParams }) {
   const idea = ideas.find((i) => i.id === ideaId);
   return (
     <div>
-      <div className="page-head"><div><h1>Atelier éditorial</h1><p className="muted small">Documentation → réflexion → angle → structure → script facultatif. L’app fonctionne sans IA ; l’assistant (Gemini, gratuit) répond directement dans l’app une fois sa clé ajoutée dans Paramètres. Le copier-coller reste possible.</p></div></div>
-      <div className="seg" style={{ marginBottom: 12 }}>{MODES.map((m) => <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{MODE_INFO[m].label}</button>)}</div>
-      <p className="muted small">{MODE_INFO[mode].intro}</p>
-      <div className="row" style={{ margin: '10px 0 16px' }}>
-        <select value={ideaId} onChange={(e) => setIdeaId(e.target.value)}>
-          <option value="">— Sans idée (travail libre) —</option>
-          {ideas.sort((a, b) => b.lastActivityAt - a.lastActivityAt).map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
-        </select>
-        {idea && <a className="btn sm ghost" href={`#/ideas/${idea.id}`}>Fiche</a>}
+      <div className="page-head"><div><h1>Atelier éditorial</h1><p>Documentation → réflexion → angle → structure → script. Un espace pour explorer, organiser et tester tes idées.</p></div></div>
+      <div className="tiles" role="tablist" aria-label="Outils de l’atelier">
+        {MODES.map((m) => {
+          const { Icon, tint } = MODE_LOOK[m];
+          return (
+            <button key={m} role="tab" aria-selected={mode === m} className={`tile ${tint} ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>
+              {mode === m && <span className="tile-dot" />}
+              <span className="tile-icon"><Icon size={26} strokeWidth={1.6} /></span>
+              <span className="tile-title">{MODE_INFO[m].label}</span>
+              <span className="tile-sub">{MODE_LOOK[m].sub}</span>
+            </button>
+          );
+        })}
       </div>
-      {mode === 'inspiration' && <Inspiration idea={idea} />}
-      {mode === 'development' && <Development idea={idea} onCreated={setIdeaId} />}
-      {mode === 'diagnostic' && <Diagnostic idea={idea} />}
-      {mode === 'writing' && <Writing idea={idea} />}
-      {mode === 'challenge' && <Challenge idea={idea} />}
+      <div className="split" style={{ marginTop: 18 }}>
+        <div className="card" style={{ padding: 22 }}>
+          <div className="row" style={{ marginBottom: 6 }}>
+            <select value={ideaId} onChange={(e) => setIdeaId(e.target.value)} aria-label="Idée travaillée">
+              <option value="">— Sans idée (travail libre) —</option>
+              {[...ideas].sort((a, b) => b.lastActivityAt - a.lastActivityAt).map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+            </select>
+            {idea && <a className="btn" href={`#/ideas/${idea.id}`}>Fiche <ExternalLink size={16} /></a>}
+          </div>
+          <p className="small muted" style={{ margin: '8px 2px 14px' }}>{MODE_INFO[mode].intro}</p>
+          {mode === 'inspiration' && <Inspiration idea={idea} />}
+          {mode === 'development' && <Development idea={idea} onCreated={setIdeaId} />}
+          {mode === 'diagnostic' && <Diagnostic idea={idea} />}
+          {mode === 'writing' && <Writing idea={idea} />}
+          {mode === 'challenge' && <Challenge idea={idea} />}
+        </div>
+        <div className="side-stack">
+          {idea ? <IdeaSide idea={idea} onGo={(m) => setMode(m)} /> : (
+            <div className="card"><h3>Choisis une idée</h3><p className="small muted">La colonne affichera son format suggéré, l’estimation du temps et les prochaines étapes.</p></div>
+          )}
+        </div>
+      </div>
       <History ideaId={ideaId} />
     </div>
+  );
+}
+
+const MODE_LOOK: Record<string, { Icon: typeof Layers; tint: string; sub: string }> = {
+  inspiration: { Icon: Layers, tint: 'tint-smoke', sub: 'Vraies sources, liens' },
+  development: { Icon: Lightbulb, tint: 'tint-teal', sub: 'Angles → structure' },
+  diagnostic: { Icon: FileText, tint: 'tint-graphite', sub: 'Sans rien réécrire' },
+  writing: { Icon: WandSparkles, tint: 'tint-milk', sub: 'Sur demande' },
+  challenge: { Icon: Target, tint: 'tint-copper', sub: 'Pertinence, preuves' },
+};
+
+/** Colonne de droite : format suggéré, estimation, prochaines étapes (calculées depuis la fiche). */
+function IdeaSide({ idea, onGo }: { idea: Idea; onGo: (m: WorkshopMode) => void }) {
+  const formats = useFormats();
+  const sources = useSources().filter((s) => s.ideaIds.includes(idea.id));
+  const top = idea.suggestions?.formats[0];
+  const fmt = formats.find((f) => f.id === (idea.formatId ?? top?.formatId));
+  const fit = top && top.formatId === fmt?.id ? top.fit : undefined;
+  const est = idea.research && (idea.research.docHours || idea.research.shootHours || idea.research.editHours)
+    ? { doc: idea.research.docHours || 0, shoot: idea.research.shootHours || 0, edit: idea.research.editHours || 0 }
+    : idea.suggestions?.estimate ? { doc: idea.suggestions.estimate.docHours, shoot: idea.suggestions.estimate.shootHours, edit: idea.suggestions.estimate.editHours } : undefined;
+  const steps: { label: string; ok: boolean; go: () => void }[] = [
+    { label: 'Formuler 2–3 angles différents', ok: idea.angles.length >= 2, go: () => onGo('development') },
+    { label: 'Rassembler les sources clés', ok: sources.length >= 2, go: () => { location.hash = `#/docs?idea=${idea.id}&tab=search`; } },
+    { label: 'Choisir l’angle', ok: !!idea.angle.trim(), go: () => onGo('development') },
+    { label: 'Valider la structure', ok: statusRank(idea.status) >= statusRank('structure'), go: () => onGo('development') },
+    { label: 'Écrire un script (facultatif)', ok: !!idea.script.trim(), go: () => onGo('writing') },
+  ];
+  return (
+    <>
+      <div className="card">
+        <h3 className="row"><Clapperboard size={20} strokeWidth={1.6} />Format suggéré</h3>
+        {fmt ? (
+          <a className="fmt-row" href={`#/formats/${fmt.id}`}>
+            <span className="fmt-thumb"><Play size={20} fill="currentColor" /></span>
+            <span style={{ minWidth: 0 }}><b style={{ display: 'block', color: 'var(--text)' }}>{fmt.name}</b><span className="small muted">{fmt.minSec} – {fmt.maxSec} s</span></span>
+            {fit && <span className="pill-teal" style={{ marginLeft: 'auto' }}>{FIT_LABELS[fit]}</span>}
+          </a>
+        ) : <p className="small muted">Pas encore de format. Ouvre la fiche : l’assistant en propose.</p>}
+      </div>
+      <div className="card">
+        <h3 className="row"><Zap size={20} strokeWidth={1.6} />Estimation</h3>
+        {est ? (
+          <div className="row" style={{ alignItems: 'center', gap: 18 }}>
+            <div><div className="big-num">≈ {Math.round((est.doc + est.shoot + est.edit) * 2) / 2} h</div><div className="small muted" style={{ marginTop: 6 }}>Total estimé</div></div>
+            <div className="legend" style={{ flex: 1, borderLeft: '1px solid var(--line)', paddingLeft: 16 }}>
+              <div><i style={{ background: 'var(--teal-hi)' }} /><span>Documentation</span><span>{est.doc} h</span></div>
+              <div><i style={{ background: 'var(--pearl)' }} /><span>Tournage</span><span>{est.shoot} h</span></div>
+              <div><i style={{ background: 'var(--copper-hi)' }} /><span>Montage</span><span>{est.edit} h</span></div>
+            </div>
+          </div>
+        ) : <p className="small muted">Pas encore d’estimation.</p>}
+      </div>
+      <div className="card">
+        <h3 className="row"><ListChecks size={20} strokeWidth={1.6} />Prochaines étapes</h3>
+        <ul className="checklist">
+          {steps.map((st) => (
+            <li key={st.label} className={st.ok ? 'ok' : ''} onClick={st.go} style={{ cursor: 'pointer' }}>
+              <span className="box">{st.ok && <Check size={14} strokeWidth={3} />}</span>{st.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
   );
 }
 
@@ -156,13 +243,13 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
   };
   return (
     <div>
-      <div className="stepper" style={{ marginBottom: 12 }}>{DEV_STEPS.map((s, i) => <button key={s} className={i === step ? 'cur' : i < step ? 'past' : ''} onClick={() => setStep(i)}>{i + 1}. {s}</button>)}</div>
+      <div className="steps" style={{ marginBottom: 16 }}>{DEV_STEPS.map((s, i) => <button key={s} className={`step ${i === step ? 'cur' : i < step ? 'done' : ''}`} onClick={() => setStep(i)}><span className="num">{i + 1}</span>{s}</button>)}</div>
       {step === 0 && (
         <div className="stack">
           <ObsField idea={idea} />
           <div className="card"><h3>Quel format ?</h3><FormatSuggestionsPanel idea={idea} /></div>
           <p className="muted small">Étape suivante : demander 2 ou 3 angles différents à l’assistant, ou les écrire toi-même.</p>
-          <button className="btn" onClick={() => setStep(1)}>Continuer →</button>
+          <button className="btn primary" onClick={() => setStep(1)}>Continuer →</button>
         </div>
       )}
       {step === 1 && (
@@ -181,7 +268,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
           <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'missing' })} importLabel="Ajouter aux infos manquantes"
               onImport={(r) => updateIdea(idea.id, { missingInfo: [idea.missingInfo, parseList(r).map((x) => `- ${x}`).join('\n')].filter(Boolean).join('\n') })} /></Fallback>
           <WebSourceFinder subject={idea.angle || idea.title} idea={idea} />
-          <button className="btn" onClick={() => setStep(4)}>Continuer →</button>
+          <button className="btn primary" onClick={() => setStep(4)}>Continuer →</button>
         </div>
       )}
       {step === 4 && (
@@ -192,7 +279,7 @@ function Development({ idea, onCreated }: { idea?: Idea; onCreated: (id: string)
           {idea.structure.length > 0 && <p className="small muted">Total {idea.structure.reduce((a, b) => a + b.seconds, 0)} s</p>}
           <a className="btn sm" href={`#/ideas/${idea.id}`}>Éditer la structure dans la fiche</a>
           <Fallback aiOn={aiOn}><PromptBox mode="development" ideaId={idea.id} prompt={buildPrompt('development', ctx, '', { step: 'structure' })} importLabel="Importer comme structure (l’ancienne est gardée en version)" onImport={importStructure} /></Fallback>
-          <button className="btn" onClick={() => setStep(5)}>Continuer →</button>
+          <button className="btn primary" onClick={() => setStep(5)}>Continuer →</button>
         </div>
       )}
       {step === 5 && <WeakStep idea={idea} ctx={ctx} aiOn={aiOn} onNext={() => setStep(6)} />}

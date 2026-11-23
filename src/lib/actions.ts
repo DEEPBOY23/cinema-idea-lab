@@ -1,6 +1,8 @@
 import { db, deviceId } from '../db';
 import type { Idea, Status, Version, Work, Source, ReadingNote, Format } from '../types';
 import { uid } from './util';
+import { toast } from './toast';
+import { statusLabel } from '../types';
 
 export async function createIdea(partial: Partial<Idea> = {}): Promise<string> {
   const now = Date.now();
@@ -16,6 +18,7 @@ export async function createIdea(partial: Partial<Idea> = {}): Promise<string> {
     await db.events.add({ id: uid(), ideaId: idea.id, type: 'created', at: idea.createdAt });
     if (idea.status !== 'idea') await db.events.add({ id: uid(), ideaId: idea.id, type: 'status', from: 'idea', to: idea.status, at: idea.createdAt });
   });
+  toast('Idée enregistrée');
   return idea.id;
 }
 
@@ -37,6 +40,7 @@ export async function setStatus(idea: Idea, to: Status, at = Date.now()) {
     await db.events.add({ id: uid(), ideaId: idea.id, type: 'status', from: idea.status, to, at });
     await db.ideas.update(idea.id, { status: to, updatedAt: Date.now(), lastActivityAt: Date.now() });
   });
+  toast(`Statut : ${statusLabel(to)}`);
 }
 
 export async function softDelete(table: 'ideas' | 'works' | 'sources' | 'notes' | 'formats' | 'sessions', id: string) {
@@ -70,6 +74,7 @@ export async function createSource(p: Partial<Source>): Promise<string> {
   };
   await db.sources.add(s);
   for (const i of s.ideaIds) await touchIdea(i);
+  toast(s.ideaIds.length ? 'Article rangé dans l’idée' : 'Source ajoutée');
   return s.id;
 }
 export async function createNote(p: Partial<ReadingNote>): Promise<string> {

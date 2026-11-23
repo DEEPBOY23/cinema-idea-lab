@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { db, syncActive } from './db';
-import { useRoute, useSync, go } from './hooks';
+import { useRoute } from './hooks';
 import { autoBackupIfDue } from './lib/backup';
 import Home from './pages/Home';
 import Formats from './pages/Formats';
@@ -16,30 +16,11 @@ import Planning from './pages/Planning';
 import Stats from './pages/Stats';
 import SettingsPage, { LoginDialog } from './pages/Settings';
 import { Modal } from './components/ui';
-
-const NAV = [
-  { path: '', label: 'Accueil', icon: '◐' },
-  { path: 'bac', label: 'Bac à idées', icon: '⧉' },
-  { path: 'formats', label: 'Les 8 formats', icon: '▦' },
-  { path: 'docs', label: 'Documentation', icon: '❡' },
-  { path: 'atelier', label: 'Atelier', icon: '✎' },
-  { path: 'films', label: 'Filmothèque', icon: '▶' },
-  { path: 'ideas', label: 'Idées', icon: '◇' },
-  { path: 'articles', label: 'Articles', icon: '❏' },
-  { path: 'planning', label: 'Planning', icon: '▤' },
-  { path: 'stats', label: 'Statistiques', icon: '∿' },
-  { path: 'settings', label: 'Paramètres', icon: '⚙' },
-];
-const MOBILE_MAIN = ['', 'bac', 'ideas', 'atelier'];
-
-export function SyncBadge({ compact = false }: { compact?: boolean }) {
-  const s = useSync();
-  return (
-    <button className={`sync sync-${s.ui}`} onClick={() => go('settings')} title={s.error ?? s.label}>
-      <i />{!compact && <span>{s.label}</span>}
-    </button>
-  );
-}
+import { Backdrop } from './components/Backdrop';
+import { useTuning } from './lib/backdropTuning';
+import Lab from './pages/Lab';
+import { Sidebar, TopBar, Dock, MoreSheet, Palette, Capture, Toasts } from './components/shell';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 /** Dialogue de connexion Dexie Cloud (e-mail → code), affiché quel que soit l'écran. */
 function CloudInteraction() {
@@ -52,6 +33,14 @@ function CloudInteraction() {
 export default function App() {
   const { path, query } = useRoute();
   const [more, setMore] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [capture, setCapture] = useState(false);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette((x) => !x); } };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  useEffect(() => { setMore(false); }, [location.hash]);
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     // Vérifie les nouvelles versions à l'ouverture, au retour sur l'app et toutes les 30 min.
     onRegisteredSW(_url, reg) {
@@ -89,6 +78,15 @@ export default function App() {
     return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('online', onVis); };
   }, []);
 
+  const tuning = useTuning();
+  // Le fond se met en retrait pendant l'écriture.
+  useEffect(() => {
+    const isField = (el: EventTarget | null) => el instanceof HTMLElement && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'file'].includes((el as HTMLInputElement).type)) || el.isContentEditable);
+    const on = (e: FocusEvent) => { if (isField(e.target)) document.body.classList.add('is-typing'); };
+    const off = () => setTimeout(() => { if (!isField(document.activeElement)) document.body.classList.remove('is-typing'); }, 50);
+    document.addEventListener('focusin', on); document.addEventListener('focusout', off);
+    return () => { document.removeEventListener('focusin', on); document.removeEventListener('focusout', off); };
+  }, []);
   const top = path[0] ?? '';
   let page;
   switch (top) {
@@ -103,44 +101,28 @@ export default function App() {
     case 'planning': page = <Planning />; break;
     case 'stats': page = <Stats />; break;
     case 'settings': page = <SettingsPage />; break;
+    case 'fond': page = <Lab />; break;
     default: page = <Home />;
   }
 
+  const subId = top === 'ideas' ? path[1] : undefined;
+  const sub = useLiveQuery(() => (subId ? db.ideas.get(subId).then((i) => i?.title) : undefined), [subId]);
+
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">Cinema <b>Idea Lab</b></div>
-        <nav>
-          {NAV.map((n) => (
-            <a key={n.path} href={`#/${n.path}`} className={top === n.path ? 'active' : ''}><span className="ni">{n.icon}</span>{n.label}</a>
-          ))}
-        </nav>
-        <div className="sidebar-foot"><SyncBadge /></div>
-      </aside>
-      <header className="mobile-top">
-        <div className="brand">Cinema <b>Idea Lab</b></div>
-        <SyncBadge compact />
-      </header>
+      <Backdrop tuning={tuning} />
+      <Sidebar top={top} />
+      <TopBar top={top} sub={sub} onSearch={() => setPalette(true)} onCapture={() => setCapture(true)} />
       {needRefresh && (
         <div className="update-bar">Une nouvelle version est disponible. <button className="btn sm" onClick={() => updateServiceWorker(true)}>Mettre à jour</button></div>
       )}
-      <main className="main">{page}</main>
+      <main className="main"><div className="page" key={location.hash.split('?')[0]}>{page}</div></main>
       <CloudInteraction />
-      <nav className="tabbar">
-        {NAV.filter((n) => MOBILE_MAIN.includes(n.path)).map((n) => (
-          <a key={n.path} href={`#/${n.path}`} className={top === n.path ? 'active' : ''} onClick={() => setMore(false)}><span className="ni">{n.icon}</span><small>{n.label.replace('Bac à idées', 'Bac')}</small></a>
-        ))}
-        <button className={more || !MOBILE_MAIN.includes(top) ? 'active' : ''} onClick={() => setMore(!more)}><span className="ni">⋯</span><small>Plus</small></button>
-      </nav>
-      {more && (
-        <div className="more-sheet" onClick={() => setMore(false)}>
-          <div className="more-inner">
-            {NAV.filter((n) => !MOBILE_MAIN.includes(n.path)).map((n) => (
-              <a key={n.path} href={`#/${n.path}`}><span className="ni">{n.icon}</span>{n.label}</a>
-            ))}
-          </div>
-        </div>
-      )}
+      <Dock top={top} onCapture={() => setCapture(true)} onMore={() => setMore(!more)} />
+      {more && <MoreSheet onClose={() => setMore(false)} />}
+      {palette && <Palette onClose={() => setPalette(false)} />}
+      {capture && <Capture onClose={() => setCapture(false)} />}
+      <Toasts />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const OUT = process.argv[2] ?? 'captures';
+const FULL = process.env.FULL !== '0'; // FULL=0 : capture au format écran (maquettes)
 const PORT = 4190;
 const BASE = `http://localhost:${PORT}/`;
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -15,7 +16,7 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const profile = mkdtempSync(join(tmpdir(), 'cil-shots-'));
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, userDataDir: profile, args: ['--no-first-run', '--hide-scrollbars'] });
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, userDataDir: profile, args: ['--no-first-run', '--hide-scrollbars', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
 
 try {
   const page = await browser.newPage();
@@ -51,7 +52,7 @@ try {
     ['22-parametres', '#/settings'],
   ];
 
-  for (const [device, vp] of [['ordinateur', { width: 1280, height: 800 }], ['telephone', { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }]]) {
+  for (const [device, vp] of [['ordinateur', FULL ? { width: 1280, height: 800 } : { width: 1440, height: 900 }], ['telephone', { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }]]) {
     const dir = join(OUT, device);
     mkdirSync(dir, { recursive: true });
     await page.setViewport(vp);
@@ -61,14 +62,11 @@ try {
       await new Promise((r) => setTimeout(r, 600));
       await page.evaluate(() => {
         document.querySelectorAll('details').forEach((d) => { d.open = true; });
-        // Capture pleine page : la barre du bas (fixe) est placée en fin de page au lieu d'apparaître au milieu.
-        const st = document.createElement('style');
-        st.textContent = '.tabbar{position:static!important} .main{padding-bottom:16px!important} .mobile-top{position:static!important}';
-        document.head.appendChild(st);
         window.scrollTo(0, 0);
       });
-      await new Promise((r) => setTimeout(r, 300));
-      await page.screenshot({ path: join(dir, `${name}.png`), fullPage: true });
+      if (FULL) await page.addStyleTag({ content: '.tabbar{position:static!important;margin:16px 12px} .main{padding-bottom:16px!important} .topbar-wrap{position:static!important}' });
+      await new Promise((r) => setTimeout(r, 1200));
+      await page.screenshot({ path: join(dir, `${name}.png`), fullPage: FULL });
       console.log(device, name);
     }
   }

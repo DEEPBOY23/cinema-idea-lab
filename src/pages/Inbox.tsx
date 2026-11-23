@@ -17,7 +17,7 @@ export default function Inbox() {
   const memory = useMemory();
   const provider = useAIProvider();
   const items = useLiveQuery(() => db.inbox.toArray(), []) ?? [];
-  const [dump, setDump] = useState('');
+  const [dump, setDump] = useState(() => { try { const d = localStorage.getItem('cil.inboxDraft') ?? ''; localStorage.removeItem('cil.inboxDraft'); return d; } catch { return ''; } });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const abort = useRef<AbortController | null>(null);
