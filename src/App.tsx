@@ -41,30 +41,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', k);
   }, []);
   useEffect(() => { setMore(false); }, [location.hash]);
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
-    // Vérifie les nouvelles versions à l'ouverture, au retour sur l'app et toutes les 30 min.
+  // Mises à jour : vérification à l'ouverture, au retour sur l'app et toutes les 30 min ;
+  // une nouvelle version s'installe aussitôt et l'app se recharge une seule fois (mode autoUpdate).
+  useRegisterSW({
+    immediate: true,
     onRegisteredSW(_url, reg) {
       if (!reg) return;
       const check = () => { if (navigator.onLine) reg.update().catch(() => {}); };
       check();
       setInterval(check, 30 * 60_000);
       document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      window.addEventListener('focus', check);
     },
   });
-  // Mise à jour automatique dès que tu n'es pas en train d'écrire (sinon, bandeau « Mettre à jour »).
-  useEffect(() => {
-    if (!needRefresh) return;
-    const tryApply = () => {
-      const el = document.activeElement as HTMLElement | null;
-      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-      if (!typing) updateServiceWorker(true);
-    };
-    const t = setTimeout(tryApply, 1500);
-    // Laisser le temps au champ quitté d'enregistrer avant de recharger.
-    const onOut = () => setTimeout(tryApply, 1000);
-    document.addEventListener('focusout', onOut);
-    return () => { clearTimeout(t); document.removeEventListener('focusout', onOut); };
-  }, [needRefresh]);
+  const needRefresh = false;
+  const updateServiceWorker = (_reload?: boolean) => { location.reload(); };
 
   useEffect(() => {
     // Stockage persistant (évite l'éviction par le navigateur) + sauvegarde auto locale quotidienne
