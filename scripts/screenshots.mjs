@@ -62,6 +62,7 @@ try {
     ['26-fiche-recap', '#/ideas/sib1/recap'],
     ['27-fiche-a-filmer', '#/ideas/sib1'],
     ['05c-idees-a-filmer', '#/ideas', '.stage-tabs button:nth-child(2)'],
+    ['05d-idees-nuages', '#/ideas', '.stage-tabs button:nth-child(1)'],
     ['01-accueil', '#/'],
     ['02-bac-a-idees', '#/bac'],
     ['03-formats', '#/formats'],

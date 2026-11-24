@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ideaStage, setFilmed } from '../lib/stage';
+import type { Variant } from '../lib/create';
 import type { Idea, Work, Format, Settings } from '../types';
 import { statusLabel } from '../types';
 import { createWork } from '../lib/actions';
@@ -65,20 +66,21 @@ export function FormatSelect({ formats, value, onChange }: { formats: Format[]; 
   );
 }
 
-export function IdeaRow({ idea, works, formats, settings }: { idea: Idea; works: Work[]; formats: Format[]; settings: Settings }) {
+export function IdeaRow({ idea, works, formats, settings, variant }: { idea: Idea; works: Work[]; formats: Format[]; settings: Settings; variant?: Variant }) {
   const fmt = formats.find((f) => f.id === idea.formatId);
   const ws = works.filter((w) => idea.workIds.includes(w.id));
   const { tone } = ageTone(idea, settings.thresholds);
   const stage = ideaStage(idea);
   return (
-    <li className={`edge-${tone} stage-${stage}`} onClick={() => go(`ideas/${idea.id}`)}>
+    <li className={`edge-${tone} stage-${stage}${idea.paused ? ' is-later' : ''}${variant ? ' has-family' : ''}`} style={variant ? ({ '--family': variant.color } as React.CSSProperties) : undefined} onClick={() => go(`ideas/${idea.id}`)}>
       <div className="row between">
         <span className="item-title">{idea.title}</span>
         <span className="row" style={{ gap: 6, flex: 'none' }}>
-          {stage === 'ready' && <span className="chip stage-chip-ready">🔵 à filmer{idea.scriptReviewed ? ' · script finalisé' : ''}</span>}
-          {stage === 'filmed' && <span className="chip stage-chip-filmed">🟢 filmée</span>}
+          {stage === 'ready' && <span className="chip stage-chip-ready"><i className="sdot sdot-ready" />à filmer{idea.scriptReviewed ? ' · script finalisé' : ''}</span>}
+          {stage === 'filmed' && <span className="chip stage-chip-filmed"><i className="sdot sdot-filmed" />filmée</span>}
           {stage === 'ready' && <label className="chip" onClick={(e) => e.stopPropagation()} title="Cocher quand c’est filmé"><input type="checkbox" checked={false} onChange={() => setFilmed(idea, true)} style={{ marginRight: 4 }} />filmée</label>}
-          {idea.paused && <span className="chip">⏸ plus tard</span>}
+          {variant && <span className="chip family-chip" title="Idées issues de la même idée de départ"><i className="sdot" style={{ background: variant.color }} />variante {variant.n}/{variant.of}</span>}
+          {idea.paused && <span className="chip later-chip"><i className="sdot sdot-later" />gardée pour plus tard</span>}
           {idea.priority === 1 && <span className="chip">priorité</span>}
         </span>
       </div>

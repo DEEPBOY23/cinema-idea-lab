@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { ImagePlus, X } from 'lucide-react';
 
-/** Réduit une photo (max 1600 px, JPEG) pour qu'elle reste légère à stocker et à synchroniser. */
-export async function compressImage(file: File, max = 1600, quality = 0.75): Promise<string> {
+/** Réduit une photo (max 1280 px, JPEG) pour qu'elle reste légère à stocker et à synchroniser. */
+export async function compressImage(file: File, max = 1280, quality = 0.7): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error('Image illisible.')); i.src = url; });

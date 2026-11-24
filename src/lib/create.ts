@@ -150,3 +150,22 @@ export function distinctTitle(title: string, existing: string[], angle?: string,
   while (existing.some((e) => e.trim().toLowerCase() === t.trim().toLowerCase())) t = `${base} (variante ${n++})`;
   return t;
 }
+
+// ---------- Familles de variantes : idées sœurs issues de la même idée de départ ----------
+export const FAMILY_COLORS = ['#c79a76', '#86a8a4', '#b3a2c4', '#c2b48a', '#a7b6c9'];
+export interface Variant { n: number; of: number; color: string }
+/** Regroupe les idées dont le titre se ressemble ou qui partent de la même observation. */
+export function variantFamilies(ideas: { id: string; title: string; observation: string; createdAt: number }[]): Map<string, Variant> {
+  const out = new Map<string, Variant>();
+  const seen = new Set<string>();
+  let fam = 0;
+  const sorted = [...ideas].sort((a, b) => a.createdAt - b.createdAt);
+  for (const a of sorted) {
+    if (seen.has(a.id)) continue;
+    const group = sorted.filter((b) => b.id === a.id || (!seen.has(b.id) && (similarTitles(a.title, b.title) || (a.observation.trim().length > 20 && a.observation.trim() === b.observation.trim()))));
+    if (group.length < 2) continue;
+    const color = FAMILY_COLORS[fam++ % FAMILY_COLORS.length];
+    group.forEach((g, i) => { seen.add(g.id); out.set(g.id, { n: i + 1, of: group.length, color }); });
+  }
+  return out;
+}

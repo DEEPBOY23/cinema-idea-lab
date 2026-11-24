@@ -29,6 +29,9 @@ export const syncActive = (() => {
       // et sont rattachées au compte lors de la première connexion (par défaut, Dexie Cloud ouvrirait une autre base).
       nameSuffix: false,
       customLoginGui: true, // dialogue de connexion rendu par l'app (en français)
+      // Les photos des remarques (texte JPEG) restent dans la ligne synchronisée au lieu d'un stockage de blobs séparé :
+      // elles sont ainsi lisibles partout, y compris dans les exports de la base.
+      largeStringThreshold: Infinity,
     });
     return true;
   }

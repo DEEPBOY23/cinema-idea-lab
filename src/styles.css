@@ -810,14 +810,16 @@ html, body { overflow-x: clip; }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; display: grid; place-items: center; background: rgba(10, 8, 7, .75); color: #fff; cursor: pointer; }
 
-/* Étapes : ☁️ nuages / 🔵 à filmer / 🟢 filmée */
-.stage-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 8px 0 4px; padding: 12px 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255, 255, 255, .045); }
-.stage-ready { border-color: rgba(96, 156, 235, .55); background: rgba(70, 130, 220, .12); }
-.stage-filmed { border-color: rgba(92, 190, 120, .55); background: rgba(70, 170, 100, .12); }
-.list > li.stage-ready { --edge: #5f9cf0; background-color: rgba(70, 130, 220, .08); }
-.list > li.stage-filmed { --edge: #5cc27a; background-color: rgba(70, 170, 100, .08); }
-.chip.stage-chip-ready { background: rgba(70, 130, 220, .22); }
-.chip.stage-chip-filmed { background: rgba(70, 170, 100, .22); }
+/* Étapes : nuages / à filmer / filmée — tons fumés, mats et transparents (charte Warm Cinematic Glass) */
+:root { --st-ready: #8aa3b8; --st-filmed: #93ab8e; --st-later: #a99cb8; --st-cloud: rgba(248, 249, 250, .45); }
+.sdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: .08em; background: var(--st-cloud); box-shadow: 0 0 0 2px rgba(255, 255, 255, .06); }
+.sdot-ready { background: var(--st-ready); } .sdot-filmed { background: var(--st-filmed); } .sdot-later { background: var(--st-later); }
+.stage-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 8px 0 4px; padding: 12px 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255, 255, 255, .04); }
+.stage-ready { border-color: rgba(138, 163, 184, .28); background: rgba(138, 163, 184, .06); }
+.stage-filmed { border-color: rgba(147, 171, 142, .28); background: rgba(147, 171, 142, .06); }
+.list > li.stage-ready { --edge: var(--st-ready); }
+.list > li.stage-filmed { --edge: var(--st-filmed); }
+.chip.stage-chip-ready, .chip.stage-chip-filmed { background: rgba(255, 255, 255, .05); }
 .script-view { white-space: pre-wrap; font-family: inherit; font-size: .95rem; line-height: 1.55; margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(0, 0, 0, .22); border: 1px solid var(--line); }
 
 /* Fiche récap */
@@ -828,8 +830,7 @@ html, body { overflow-x: clip; }
 .recap-beat { display: grid; grid-template-columns: minmax(90px, 22%) 44px 1fr; gap: 10px; padding: 6px 0; font-size: .92rem; }
 .recap-list { margin: 0; padding-left: 18px; }
 .recap-list li { margin: 4px 0; }
-.recap-stage-ready { background: rgba(70, 130, 220, .2) !important; }
-.recap-stage-filmed { background: rgba(70, 170, 100, .2) !important; }
+
 
 /* Export PDF : seule la fiche, fond blanc, texte noir */
 @media print {
@@ -857,3 +858,21 @@ html, body { overflow-x: clip; }
   .recap-beat { grid-template-columns: 1fr auto; gap: 2px 10px; }
   .recap-beat > span:last-child { grid-column: 1 / -1; }
 }
+
+/* Idée gardée pour plus tard : violet, pour ne jamais la confondre avec l'idée choisie */
+.list > li.is-later { --edge: var(--st-later); background-color: rgba(169, 156, 184, .07); }
+.list > li.is-later .item-title { color: rgba(248, 249, 250, .8); }
+.chip.family-chip { background: rgba(255, 255, 255, .05); }
+.list > li.is-later .item-title { opacity: .85; }
+.chip.later-chip { background: rgba(169, 156, 184, .1); border-color: rgba(169, 156, 184, .28); }
+
+/* Carte entièrement teintée : voile de verre coloré (mat, transparent). Priorité : famille de variantes > plus tard > à filmer / filmée */
+.list > li.stage-ready { --fill: var(--st-ready); }
+.list > li.stage-filmed { --fill: var(--st-filmed); }
+.list > li.is-later { --fill: var(--st-later); }
+.list > li.has-family { --fill: var(--family); --edge: var(--family); }
+.list > li[style*='--family'], .list > li.stage-ready, .list > li.stage-filmed, .list > li.is-later {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--fill) 24%, transparent), color-mix(in srgb, var(--fill) 8%, transparent) 70%), rgba(20, 19, 18, 0.45) !important;
+  border-color: color-mix(in srgb, var(--fill) 30%, transparent) !important;
+}
+.list > li.is-later.has-family { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .025) 0 10px, transparent 10px 20px), linear-gradient(150deg, color-mix(in srgb, var(--fill) 16%, transparent), color-mix(in srgb, var(--fill) 5%, transparent) 70%), rgba(20, 19, 18, 0.45) !important; }

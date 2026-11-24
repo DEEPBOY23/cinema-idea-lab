@@ -5,6 +5,7 @@ import { IdeaRow } from '../components/pickers';
 import { Empty } from '../components/ui';
 import { createIdea } from '../lib/actions';
 import { ageTone } from '../lib/aging';
+import { variantFamilies } from '../lib/create';
 import { ideaStage, STAGE_LABEL, type Stage } from '../lib/stage';
 
 type Sort = 'activity' | 'created' | 'priority' | 'age';
@@ -44,6 +45,7 @@ export default function Ideas() {
     return l;
   }, [ideas, q, status, fmt, work, diff, sort, stage]);
 
+  const families = useMemo(() => variantFamilies(ideas), [ideas]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const i of ideas) { const t = ageTone(i, settings.thresholds).tone; c[t] = (c[t] ?? 0) + 1; }
@@ -57,7 +59,7 @@ export default function Ideas() {
         <button className="btn primary" onClick={async () => go(`ideas/${await createIdea({})}`)}>+ Nouvelle idée</button>
       </div>
       <div className="seg stage-tabs" style={{ marginBottom: 12 }}>
-        {(Object.keys(STAGE_LABEL) as Stage[]).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => pickStage(k)}>{STAGE_LABEL[k]} ({stageCount[k]})</button>)}
+        {(Object.keys(STAGE_LABEL) as Stage[]).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => pickStage(k)}><i className={`sdot sdot-${k}`} />{STAGE_LABEL[k]} ({stageCount[k]})</button>)}
       </div>
       <p className="tiny muted" style={{ margin: '-4px 0 12px' }}>{stage === 'cloud' ? 'Idées en cours : développe-les puis « Finaliser l’idée » sur leur fiche.' : stage === 'ready' ? 'Finalisées, avec leur fiche récap. Coche « filmée » quand c’est tourné.' : 'Tournées, réalisées ou publiées.'}</p>
       <div className="grid two" style={{ marginBottom: 12 }}>
@@ -89,7 +91,7 @@ export default function Ideas() {
         </select>
       </div>
       {list.length ? (
-        <ul className="list">{list.map((i) => <IdeaRow key={i.id} idea={i} works={works} formats={formats} settings={settings} />)}</ul>
+        <ul className="list">{list.map((i) => <IdeaRow key={i.id} idea={i} works={works} formats={formats} settings={settings} variant={families.get(i.id)} />)}</ul>
       ) : <Empty>Aucune idée ne correspond. Capture une observation depuis l’accueil ou crée une idée.</Empty>}
       <p className="muted tiny" style={{ marginTop: 16 }}>
         Pastilles : <span className="age age-fresh"><i />0–{settings.thresholds[0]} j</span> · <span className="age age-amber"><i />–{settings.thresholds[1]} j</span> · <span className="age age-terracotta"><i />–{settings.thresholds[2]} j</span> · <span className="age age-bordeaux"><i />au-delà</span> · <span className="age age-done"><i />réalisée</span> · <span className="age age-published"><i />publiée</span> (seuils modifiables dans Paramètres).

@@ -596,7 +596,7 @@ function FinalizeCard({ idea, ctx, target }: { idea: Idea; ctx: any; target?: nu
     };
     return (
       <div className="stage-card stage-cloud">
-        <div><b>Ton idée a sa structure : prête à finaliser ?</b><div className="tiny muted">Elle passe dans « 🔵 À filmer » avec une fiche récap (hook, angles, structure, sources, script){provider !== 'none' && !idea.script.trim() ? ', et l’IA prépare le script' : ''}.</div></div>
+        <div><b>Ton idée a sa structure : prête à finaliser ?</b><div className="tiny muted">Elle passe dans « À filmer » avec une fiche récap (hook, angles, structure, sources, script){provider !== 'none' && !idea.script.trim() ? ', et l’IA prépare le script' : ''}.</div></div>
         <button className="btn sm primary" disabled={busy} onClick={run}>{busy ? 'Préparation du script…' : 'Finaliser l’idée'}</button>
       </div>
     );
@@ -604,7 +604,7 @@ function FinalizeCard({ idea, ctx, target }: { idea: Idea; ctx: any; target?: nu
   return (
     <div className={`stage-card stage-${stage}`}>
       <div>
-        <b>{stage === 'ready' ? '🔵 À filmer' : '🟢 Filmée'}</b>
+        <b><i className={`sdot sdot-${stage}`} />{stage === 'ready' ? 'À filmer' : 'Filmée'}</b>
         <span className="tiny muted"> · {idea.scriptReviewed ? 'script finalisé' : idea.scriptAI || idea.script ? 'script de l’IA à relire' : 'pas encore de script'}</span>
         <label className="row small" style={{ marginTop: 6 }}><input type="checkbox" checked={stage === 'filmed'} onChange={(e) => setFilmed(idea, e.target.checked)} /> Filmée</label>
       </div>

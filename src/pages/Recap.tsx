@@ -36,7 +36,7 @@ export default function Recap({ id }: { id: string }) {
       <div className="card recap-sheet">
         <div className="row between wrap" style={{ alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-            <span className={`chip recap-stage-${stage}`}>{stage === 'filmed' ? '🟢 Filmée' : stage === 'ready' ? '🔵 À filmer' : '☁️ En cours'}</span>
+            <span className={`chip recap-stage-${stage}`}><i className={`sdot sdot-${stage}`} />{stage === 'filmed' ? 'Filmée' : stage === 'ready' ? 'À filmer' : 'En cours'}</span>
             <h1 style={{ margin: '8px 0 4px' }}>{idea.title}</h1>
             <p className="small muted" style={{ margin: 0 }}>{[fmt && `${fmt.name} (${fmt.minSec}–${fmt.maxSec} s)`, iWorks.map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}`).join(', ')].filter(Boolean).join(' · ')}</p>
           </div>

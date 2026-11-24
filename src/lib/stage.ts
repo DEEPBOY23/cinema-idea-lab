@@ -4,7 +4,7 @@ import { updateIdea, addJournal, setStatus } from './actions';
 import { statusRank } from '../types';
 
 export type Stage = 'cloud' | 'ready' | 'filmed';
-export const STAGE_LABEL: Record<Stage, string> = { cloud: '☁️ Dans les nuages', ready: '🔵 À filmer', filmed: '🟢 Filmées' };
+export const STAGE_LABEL: Record<Stage, string> = { cloud: 'Dans les nuages', ready: 'À filmer', filmed: 'Filmées' };
 export function ideaStage(i: Idea): Stage {
   if (i.filmedAt || i.status === 'done' || i.status === 'published') return 'filmed';
   if (i.finalizedAt) return 'ready';
@@ -20,6 +20,6 @@ export async function unfinalizeIdea(i: Idea) {
 }
 export async function setFilmed(i: Idea, filmed: boolean) {
   await updateIdea(i.id, { filmedAt: filmed ? Date.now() : undefined });
-  await addJournal(filmed ? 'Filmée 🟢' : 'Marquée « pas encore filmée ».', i.id);
+  await addJournal(filmed ? 'Filmée.' : 'Marquée « pas encore filmée ».', i.id);
   if (filmed && statusRank(i.status) < statusRank('production')) await setStatus(i, 'production');
 }

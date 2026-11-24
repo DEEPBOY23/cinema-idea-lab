@@ -42,3 +42,17 @@ describe('étapes visibles', () => {
     expect(ideaStage(i({ status: 'published' }))).toBe('filmed');
   });
 });
+
+import { variantFamilies } from './create';
+describe('familles de variantes', () => {
+  it('regroupe les idées sœurs', () => {
+    const f = variantFamilies([
+      { id: 'a', title: 'Le corail, couleur de la présence', observation: 'x', createdAt: 1 },
+      { id: 'b', title: 'Le corail, couleur de la présence — Les scènes seules', observation: 'y', createdAt: 2 },
+      { id: 'c', title: 'Filmer une voix', observation: 'z', createdAt: 3 },
+    ]);
+    expect(f.get('a')).toMatchObject({ n: 1, of: 2 });
+    expect(f.get('b')).toMatchObject({ n: 2, of: 2 });
+    expect(f.get('c')).toBeUndefined();
+  });
+});

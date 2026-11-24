@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, uid } from '../db';
 import { Dictate, Empty } from '../components/ui';
@@ -13,6 +13,14 @@ const PAGES = ['Général', ...NAV.map((n) => n.label), 'Fiche d’une idée', '
 /** Améliorations : noter remarques et idées d'évolution de l'app, puis les transmettre à Claude. */
 export default function Improvements() {
   const remarks = useLiveQuery(() => db.remarks.orderBy('at').reverse().toArray(), []) ?? [];
+  // Une fois : ré-enregistre les photos déjà rangées à part par la synchro, pour qu'elles voyagent avec la remarque.
+  useEffect(() => {
+    try { if (localStorage.getItem('cil.remarks.inlinePhotos')) return; } catch { return; }
+    const withPhotos = remarks.filter((r) => r.photos?.length && r.photos.every((p) => typeof p === 'string'));
+    if (!remarks.length) return;
+    Promise.all(withPhotos.map((r) => db.remarks.update(r.id, { photos: [...r.photos!], updatedAt: Date.now() })))
+      .then(() => { try { localStorage.setItem('cil.remarks.inlinePhotos', '1'); } catch { /* */ } });
+  }, [remarks.length]);
   const [text, setText] = useState('');
   const [kind, setKind] = useState<Remark['kind']>('idee');
   const [page, setPage] = useState('Général');
