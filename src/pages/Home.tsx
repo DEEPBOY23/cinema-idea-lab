@@ -56,7 +56,7 @@ export default function Home() {
       <div className="card">
         <div className="row between" style={{ marginBottom: 6 }}><span className="field-label" style={{ margin: 0 }}>Capture rapide — une observation, un hook, une intuition</span><Dictate onText={(t) => setText((x) => (x ? x + ' ' : '') + t)} /></div>
         <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex. Dans ce film, la caméra ne quitte jamais la hauteur des yeux de l’enfant…" />
-        <div className="row" style={{ marginTop: 8 }}>
+        <div className="row wrap" style={{ marginTop: 8 }}>
           <button className="btn primary" disabled={!text.trim()} onClick={() => capture(false)}>Enregistrer</button>
           <button className="btn" disabled={!text.trim()} onClick={() => capture(true)}>Enregistrer et développer</button>
           <a className="small" href="#/bac" style={{ marginLeft: 'auto' }}>Plusieurs idées d’un coup ? Bac à idées →</a>
