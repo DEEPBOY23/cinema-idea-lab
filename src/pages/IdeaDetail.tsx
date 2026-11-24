@@ -21,6 +21,7 @@ import { WebSourceFinder } from '../components/webSources';
 import { liveEstimate, aiEstimate } from '../lib/estimate';
 import { proposeAngles, reworkText } from '../lib/devAssist';
 import { toast } from '../lib/toast';
+import { ideaStage, finalizeIdea, unfinalizeIdea, setFilmed } from '../lib/stage';
 
 const LEVELS: { id: ResearchLevelId; label: string; hint: string }[] = [
   { id: 'light', label: 'Légère', hint: 'Une scène ou une technique précise, simple à documenter.' },
@@ -109,6 +110,7 @@ export default function IdeaDetail({ id }: { id: string }) {
       <p className="muted tiny">Étapes flexibles : tu peux sauter une étape ou revenir en arrière, chaque transition est historisée.</p>
 
       <EstimateBar idea={idea} fmt={fmt} formats={formats} ctx={ctx} />
+      <FinalizeCard idea={idea} ctx={ctx} target={target} />
 
       <Section title={`Formats proposés${idea.suggestions?.formats.length ? ` (${idea.suggestions.formats.length})` : ''}`} open={!idea.formatId || !!idea.suggestions}>
         <FormatSuggestionsPanel idea={idea} />
@@ -153,14 +155,9 @@ export default function IdeaDetail({ id }: { id: string }) {
         <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} ctx={ctx} />
       </Section>
 
-      <Section title="Script (facultatif)" open={!!idea.script} right={<AiBtn label={idea.script.trim() ? '✦ Retravailler' : '✦ Premier jet'} run={async () => {
-        const t = await reworkText('le script', idea.script, ctx, `Exception : ici on te demande bien un texte rédigé, à dire face caméra, d'après la structure de la fiche${target ? `, pour environ ${target} secondes à l'oral` : ''}.`);
-        if (idea.script.trim()) await snapshot('ideas', idea.id, 'script', idea.script, 'manual');
-        await updateIdea(idea.id, { script: t }); toast('Script mis à jour (l’ancienne version est dans l’historique).');
-      }} />}>
-        <Field table="ideas" id={id} field="script" value={idea.script} multiline rows={10} versioned placeholder="Le script reste facultatif. Tu peux aussi le coller dans l’atelier pour un diagnostic." />
-        <p className="muted small" style={{ marginTop: 6 }}>{wordCount(idea.script)} mots · ≈ {oralSeconds(idea.script, settings.wpm)} s à l’oral ({settings.wpm} mots/min){target ? ` · cible ${target} s` : ''}</p>
-        <details><summary className="small muted">Versions antérieures du script</summary>
+      <Section title={`Script${idea.scriptReviewed ? ' · ✓ finalisé' : idea.scriptAI && !idea.scriptReviewed ? ' · version IA à relire' : ''}`} open={!!(idea.script || idea.scriptAI)}>
+        <ScriptTabs idea={idea} ctx={ctx} target={target} wpm={settings.wpm} />
+        <details><summary className="small muted">Versions antérieures de ta version</summary>
           <VersionsPanel entityId={id} field="script" current={idea.script} onRestore={async (v) => { await snapshot('ideas', id, 'script', idea.script, 'restore'); await up({ script: v }); }} />
         </details>
       </Section>
@@ -530,6 +527,91 @@ function EstimateBar({ idea, fmt, formats, ctx }: { idea: Idea; fmt?: ReturnType
         <div className="tiny muted">En direct, d’après {e.basis}{e.changes.length ? ` + ${e.changes.join(', ')}` : ''}. Calcul gratuit, sans IA.</div>
       </div>
       <AiBtn label="✦ Ré-estimer avec l’IA" run={async () => { const t = await aiEstimate(idea, ctx); toast(`Estimation de l’assistant : ≈ ${t} h.`); }} />
+    </div>
+  );
+}
+
+const scriptInstruction = (target?: number) => `Exception : ici on te demande bien un texte rédigé, à dire face caméra, qui suit la structure de la fiche (hook, intro, angles, contradiction, conclusion) avec l'angle et le hook retenus${target ? `, pour environ ${target} secondes à l'oral` : ''}. Garde les hypothèses formulées comme des hypothèses.`;
+async function draftScriptAI(idea: Idea, ctx: any, target?: number) {
+  const t = await reworkText('le script', idea.scriptAI ?? '', ctx, scriptInstruction(target));
+  await updateIdea(idea.id, { scriptAI: t });
+  return t;
+}
+
+/** Deux onglets : la maquette de l'IA (jamais écrasée par toi) et ta version, que tu valides. */
+function ScriptTabs({ idea, ctx, target, wpm }: { idea: Idea; ctx: any; target?: number; wpm: number }) {
+  const [tab, setTab] = useState<'ai' | 'mine'>(idea.script.trim() || !idea.scriptAI ? 'mine' : 'ai');
+  const cur = tab === 'ai' ? (idea.scriptAI ?? '') : idea.script;
+  return (
+    <div>
+      <div className="row between wrap" style={{ marginBottom: 8 }}>
+        <div className="seg">
+          <button className={tab === 'ai' ? 'on' : ''} onClick={() => setTab('ai')}>✦ Script de l’IA</button>
+          <button className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>Ma version{idea.scriptReviewed ? ' ✓' : ''}</button>
+        </div>
+        {tab === 'ai'
+          ? <AiBtn label={idea.scriptAI ? '↻ Régénérer' : '✦ Préparer le script'} run={async () => { await draftScriptAI(idea, ctx, target); toast('Script de l’IA prêt. Ta version n’a pas été touchée.'); }} />
+          : <AiBtn label="✦ Retravailler ma version" run={async () => {
+              const t = await reworkText('le script', idea.script, ctx, scriptInstruction(target) + ' Garde au maximum ses mots à lui.');
+              if (idea.script.trim()) await snapshot('ideas', idea.id, 'script', idea.script, 'manual');
+              await updateIdea(idea.id, { script: t, scriptReviewed: false }); toast('Ta version a été retravaillée (l’ancienne est dans l’historique).');
+            }} />}
+      </div>
+      {tab === 'ai' ? (
+        idea.scriptAI
+          ? <><pre className="script-view">{idea.scriptAI}</pre>
+              <div className="row wrap" style={{ marginTop: 8 }}>
+                <button className="btn sm" onClick={async () => {
+                  if (idea.script.trim() && !confirm('Remplacer ta version par le script de l’IA ? (ta version actuelle reste dans l’historique)')) return;
+                  if (idea.script.trim()) await snapshot('ideas', idea.id, 'script', idea.script, 'manual');
+                  await updateIdea(idea.id, { script: idea.scriptAI ?? '', scriptReviewed: false }); setTab('mine');
+                }}>Partir de ce script pour ma version →</button>
+                <span className="tiny muted">La maquette de l’IA reste ici telle quelle : tu ne perds jamais la structure.</span>
+              </div></>
+          : <p className="small muted">L’IA prépare un script complet à partir de tout ce que tu as choisi (hook, angle, structure). Tu le révises ensuite avec tes mots dans « Ma version ».</p>
+      ) : (
+        <>
+          <Field table="ideas" id={idea.id} field="script" value={idea.script} multiline rows={10} versioned placeholder="Ta version du script, avec tes mots. Pars du script de l’IA ou écris directement." />
+          <label className="row small" style={{ marginTop: 8 }}><input type="checkbox" checked={!!idea.scriptReviewed} disabled={!idea.script.trim()} onChange={(e) => updateIdea(idea.id, { scriptReviewed: e.target.checked })} /> Script relu et finalisé</label>
+        </>
+      )}
+      <p className="muted small" style={{ marginTop: 6 }}>{wordCount(cur)} mots · ≈ {oralSeconds(cur, wpm)} s à l’oral ({wpm} mots/min){target ? ` · cible ${target} s` : ''}</p>
+    </div>
+  );
+}
+
+/** Après les étapes : proposer de finaliser (fiche récap + script), puis suivre 🔵 à filmer → 🟢 filmée. */
+function FinalizeCard({ idea, ctx, target }: { idea: Idea; ctx: any; target?: number }) {
+  const provider = useAIProvider();
+  const [busy, setBusy] = useState(false);
+  const stage = ideaStage(idea);
+  const ready = idea.structure.some((b) => b.content.trim()) || !!idea.script.trim();
+  if (stage === 'cloud') {
+    if (!ready && statusRank(idea.status) < statusRank('structure')) return null;
+    const run = async () => {
+      setBusy(true);
+      try { if (provider !== 'none' && !idea.scriptAI && !idea.script.trim()) await draftScriptAI(idea, ctx, target); await finalizeIdea(idea); go(`ideas/${idea.id}/recap`); }
+      catch (e: any) { toast(e?.message ?? String(e)); }
+      setBusy(false);
+    };
+    return (
+      <div className="stage-card stage-cloud">
+        <div><b>Ton idée a sa structure : prête à finaliser ?</b><div className="tiny muted">Elle passe dans « 🔵 À filmer » avec une fiche récap (hook, angles, structure, sources, script){provider !== 'none' && !idea.script.trim() ? ', et l’IA prépare le script' : ''}.</div></div>
+        <button className="btn sm primary" disabled={busy} onClick={run}>{busy ? 'Préparation du script…' : 'Finaliser l’idée'}</button>
+      </div>
+    );
+  }
+  return (
+    <div className={`stage-card stage-${stage}`}>
+      <div>
+        <b>{stage === 'ready' ? '🔵 À filmer' : '🟢 Filmée'}</b>
+        <span className="tiny muted"> · {idea.scriptReviewed ? 'script finalisé' : idea.scriptAI || idea.script ? 'script de l’IA à relire' : 'pas encore de script'}</span>
+        <label className="row small" style={{ marginTop: 6 }}><input type="checkbox" checked={stage === 'filmed'} onChange={(e) => setFilmed(idea, e.target.checked)} /> Filmée</label>
+      </div>
+      <div className="row wrap">
+        <a className="btn sm primary" href={`#/ideas/${idea.id}/recap`}>Fiche récap</a>
+        <button className="btn sm ghost" onClick={() => unfinalizeIdea(idea)}>Remettre dans les nuages</button>
+      </div>
     </div>
   );
 }

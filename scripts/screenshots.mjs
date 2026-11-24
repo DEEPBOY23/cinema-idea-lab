@@ -37,13 +37,31 @@ try {
       { title: 'Filmer quelqu’un qui n’existe pas', summary: 'Comment on cadre un dialogue avec une voix.', angles: ['Pas de contrechamp', 'Le visage comme écran'], formats: [], estimate: { level: 'moderate', docHours: 2, shootHours: 2, editHours: 3, totalHours: 7, why: '' }, structure: { hook: 'Il parle à quelqu’un. Mais où est-elle ?', intro: '', angles: [], contradiction: '', conclusion: '' }, searches: [] },
     ]));
   });
-  await page.evaluate(async () => { const db = globalThis.__cilDb; await db.remarks.put({ id: 'r1', kind: 'gene', text: 'Trop d’onglets, je ne sais pas où commencer.', page: 'Général', status: 'open', at: Date.now(), updatedAt: Date.now() }); });
+  await page.evaluate(async () => { const db = globalThis.__cilDb; const c = document.createElement('canvas'); c.width = 300; c.height = 600; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 300, 600); gr.addColorStop(0, '#a65a2c'); gr.addColorStop(1, '#2c5659'); g.fillStyle = gr; g.fillRect(0, 0, 300, 600); g.fillStyle = '#fff'; g.font = 'bold 34px sans-serif'; g.fillText('Capture', 70, 300); await db.remarks.put({ id: 'r1', kind: 'gene', text: 'Trop d’onglets, je ne sais pas où commencer.', page: 'Général', status: 'open', at: Date.now(), updatedAt: Date.now(), photos: [c.toDataURL('image/jpeg', .8)] }); });
 
+  await page.evaluate(async () => {
+    const db = globalThis.__cilDb, now = Date.now();
+    const base = { workIds: [], category: 'analyse', createdAt: now, updatedAt: now, lastActivityAt: now, status: 'angle', observation: 'Dans Her, tout le monde porte du corail sauf quand Theodore est seul.', angle: '', hook: '', angles: [], structure: [], script: '', missingInfo: '', avDifficulty: 2, comments: [], formatId: 'fmt-color-stories' };
+    await db.ideas.bulkPut([
+      { ...base, id: 'sib1', title: 'Le corail, couleur de la présence', priority: 2, paused: false, finalizedAt: now, hook: 'Regarde la chemise de Theodore.', angle: 'Le corail apparaît quand Samantha parle',
+        structure: [
+          { id: 'b1', label: 'Hook', seconds: 5, content: 'Regarde la chemise de Theodore.' },
+          { id: 'b2', label: 'Intro', seconds: 8, content: 'Dans Her, le corail est partout… sauf à un moment précis.' },
+          { id: 'b3', label: 'Angle 1', seconds: 14, content: 'Le corail suit la voix de Samantha.' },
+          { id: 'b4', label: 'Contradiction', seconds: 7, content: 'On peut aussi y voir une simple charte de costumes.' },
+          { id: 'b5', label: 'Conclusion / complément', seconds: 6, content: 'La couleur joue le rôle d’un personnage invisible.' }],
+        scriptAI: 'Regarde la chemise de Theodore.\nCorail. Comme les murs, comme la lumière.\nDans Her, cette couleur est partout… sauf quand il est seul.\nHypothèse : la couleur remplace le contrechamp. Samantha n’a pas de corps, alors le film lui donne une teinte.\nOn peut y voir une simple charte de costumes — mais regarde quand elle se tait.\nLa couleur devient un personnage.' },
+      { ...base, id: 'sib2', title: 'Le corail, couleur de la présence — Les scènes seules sont désaturées', priority: 3, paused: true },
+    ]);
+  });
   const routes = [
     ['00-creer', '#/creer'],
     ['23-ameliorations', '#/ameliorations'],
     ['24-remarque-rapide', `#/ideas/${ids.idea}`, '[aria-label="Noter une amélioration"]'],
     ['25-tester-assistant', '#/settings'],
+    ['26-fiche-recap', '#/ideas/sib1/recap'],
+    ['27-fiche-a-filmer', '#/ideas/sib1'],
+    ['05c-idees-a-filmer', '#/ideas', '.stage-tabs button:nth-child(2)'],
     ['01-accueil', '#/'],
     ['02-bac-a-idees', '#/bac'],
     ['03-formats', '#/formats'],

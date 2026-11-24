@@ -130,3 +130,23 @@ export function generatedToIdea(g: GeneratedIdea, chosenAngles: number[], seed: 
     status: chosen.length ? 'angle' : 'idea',
   };
 }
+
+// ---------- Titres distincts : deux idées sœurs ne doivent pas se confondre dans la liste ----------
+const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\[.*?\]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3);
+export function similarTitles(a: string, b: string): boolean {
+  const x = norm(a), y = new Set(norm(b));
+  if (!x.length || !y.size) return false;
+  const common = x.filter((w) => y.has(w)).length;
+  return common / Math.min(x.length, y.size) >= 0.5;
+}
+const short = (t: string, n = 48) => { const c = t.split(/[\n.:;]/)[0].trim(); return c.length > n ? `${c.slice(0, n).replace(/\s+\S*$/, '')}…` : c; };
+/** Si le titre ressemble à une idée existante, on le précise avec l'angle (ou le format), puis un numéro de variante. */
+export function distinctTitle(title: string, existing: string[], angle?: string, formatName?: string): string {
+  if (!existing.some((e) => similarTitles(title, e))) return title;
+  const detail = angle ? short(angle) : formatName;
+  let t = detail ? `${title} — ${detail}` : title;
+  let n = 2;
+  const base = t;
+  while (existing.some((e) => e.trim().toLowerCase() === t.trim().toLowerCase())) t = `${base} (variante ${n++})`;
+  return t;
+}

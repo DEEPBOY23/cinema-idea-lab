@@ -12,6 +12,7 @@ import { statusRank } from '../types';
 import { Dictate, useAIProvider, Modal } from './ui';
 import { uid } from '../lib/util';
 import { toast } from '../lib/toast';
+import { PhotoPicker } from './photos';
 import { runSuggest, useMemory } from './assist';
 
 export const NAV = [
@@ -242,9 +243,10 @@ export { Mic };
 function QuickRemark({ page, onClose }: { page: string; onClose: () => void }) {
   const [text, setText] = useState('');
   const [kind, setKind] = useState<'idee' | 'gene' | 'bug'>('idee');
+  const [photos, setPhotos] = useState<string[]>([]);
   const save = async () => {
     const now = Date.now();
-    await db.remarks.add({ id: uid(), kind, text: text.trim(), page, status: 'open', at: now, updatedAt: now });
+    await db.remarks.add({ id: uid(), kind, text: text.trim() || 'Voir la photo', page, status: 'open', at: now, updatedAt: now, ...(photos.length ? { photos } : {}) });
     toast('Remarque notée. Retrouve-les dans Améliorations.');
     onClose();
   };
@@ -256,8 +258,9 @@ function QuickRemark({ page, onClose }: { page: string; onClose: () => void }) {
         <Dictate onText={(t) => setText((x) => (x ? x + ' ' : '') + t)} />
       </div>
       <textarea autoFocus rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ce qui te gêne, ce qui manque…" />
+      <div style={{ marginTop: 8 }}><PhotoPicker photos={photos} onChange={setPhotos} /></div>
       <div className="row wrap" style={{ marginTop: 8 }}>
-        <button className="btn primary" disabled={!text.trim()} onClick={save}>Noter</button>
+        <button className="btn primary" disabled={!text.trim() && !photos.length} onClick={save}>Noter</button>
         <button className="btn ghost" onClick={onClose}>Annuler</button>
         <a className="small" href="#/ameliorations" onClick={onClose} style={{ marginLeft: 'auto' }}>Voir toutes mes remarques →</a>
       </div>

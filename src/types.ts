@@ -63,6 +63,10 @@ export interface Idea {
   compat?: { rating: CompatRating; justification: string; at: number };
   targetSeconds?: number;
   paused: boolean;
+  scriptAI?: string; // script préparé par l'IA (maquette), jamais écrasé par ta version
+  scriptReviewed?: boolean; // ta version est relue et finalisée
+  finalizedAt?: number; // idée finalisée : 🔵 à filmer
+  filmedAt?: number; // filmée : 🟢
   plannedWeek?: string; // 'YYYY-Www'
   suggestions?: Suggestions; // formats proposés (IA ou règles locales)
   favorite?: boolean;
@@ -183,4 +187,5 @@ export interface InboxItem {
 export interface Remark {
   id: string; kind: 'idee' | 'gene' | 'bug'; text: string; page: string;
   status: 'open' | 'done'; at: number; updatedAt: number;
+  photos?: string[]; // JPEG réduits (data URL)
 }

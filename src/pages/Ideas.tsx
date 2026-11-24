@@ -5,6 +5,7 @@ import { IdeaRow } from '../components/pickers';
 import { Empty } from '../components/ui';
 import { createIdea } from '../lib/actions';
 import { ageTone } from '../lib/aging';
+import { ideaStage, STAGE_LABEL, type Stage } from '../lib/stage';
 
 type Sort = 'activity' | 'created' | 'priority' | 'age';
 
@@ -19,10 +20,14 @@ export default function Ideas() {
   const [work, setWork] = useState('');
   const [diff, setDiff] = useState('');
   const [sort, setSort] = useState<Sort>('activity');
+  const [stage, setStage] = useState<Stage>(() => { try { return (sessionStorage.getItem('cil.ideas.stage') as Stage) || 'cloud'; } catch { return 'cloud'; } });
+  const pickStage = (s: Stage) => { setStage(s); try { sessionStorage.setItem('cil.ideas.stage', s); } catch { /* */ } };
+  const stageCount = useMemo(() => { const c: Record<Stage, number> = { cloud: 0, ready: 0, filmed: 0 }; for (const i of ideas) c[ideaStage(i)]++; return c; }, [ideas]);
 
   const list = useMemo(() => {
     let l = ideas.filter((i) => {
-      if (status === 'active' && (i.status === 'done' || i.status === 'published')) return false;
+      if (ideaStage(i) !== stage) return false;
+      if (stage === 'cloud' && status === 'active' && (i.status === 'done' || i.status === 'published')) return false;
       if (status !== 'active' && status !== 'all' && i.status !== status) return false;
       if (fmt && i.formatId !== fmt) return false;
       if (work && !i.workIds.includes(work)) return false;
@@ -37,7 +42,7 @@ export default function Ideas() {
       return b.lastActivityAt - a.lastActivityAt;
     });
     return l;
-  }, [ideas, q, status, fmt, work, diff, sort]);
+  }, [ideas, q, status, fmt, work, diff, sort, stage]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -51,6 +56,10 @@ export default function Ideas() {
         <div><h1>Bibliothèque d’idées</h1><p className="muted small">{ideas.length} idée{ideas.length > 1 ? 's' : ''} · {counts.bordeaux ?? 0} endormie{(counts.bordeaux ?? 0) > 1 ? 's' : ''} · {(counts.done ?? 0) + (counts.published ?? 0)} terminée{((counts.done ?? 0) + (counts.published ?? 0)) > 1 ? 's' : ''}</p></div>
         <button className="btn primary" onClick={async () => go(`ideas/${await createIdea({})}`)}>+ Nouvelle idée</button>
       </div>
+      <div className="seg stage-tabs" style={{ marginBottom: 12 }}>
+        {(Object.keys(STAGE_LABEL) as Stage[]).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => pickStage(k)}>{STAGE_LABEL[k]} ({stageCount[k]})</button>)}
+      </div>
+      <p className="tiny muted" style={{ margin: '-4px 0 12px' }}>{stage === 'cloud' ? 'Idées en cours : développe-les puis « Finaliser l’idée » sur leur fiche.' : stage === 'ready' ? 'Finalisées, avec leur fiche récap. Coche « filmée » quand c’est tourné.' : 'Tournées, réalisées ou publiées.'}</p>
       <div className="grid two" style={{ marginBottom: 12 }}>
         <input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={status} onChange={(e) => setStatus(e.target.value as any)}>

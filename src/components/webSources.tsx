@@ -17,6 +17,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
   const abort = useRef<AbortController | null>(null);
+  const [next, setNext] = useState(false);
 
   const [refused, setRefused] = useState(groundingRefused());
   if (getProvider() === 'none') {
@@ -65,6 +66,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
     }
     setMsg(`${n} source${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} à ta documentation (statut « À lire », accès à vérifier).`);
     setRes(null);
+    setNext(true);
   };
 
   return (
@@ -75,6 +77,17 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
           : <button className="btn sm primary" disabled={!(subject || idea)} onClick={run}>Chercher des sources</button>}
       </div>
       {msg && <p className="small" style={{ marginTop: 8 }}>{msg}</p>}
+      {next && !res && !busy && (
+        <div className="note small" style={{ marginTop: 10 }}>
+          <b>Et maintenant ?</b>
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <button className="btn sm" onClick={() => { setNext(false); setMsg(''); run(); }}>Chercher d’autres sources</button>
+            {idea && <a className="btn sm" href={`#/ideas/${idea.id}`}>Revenir à l’idée</a>}
+            <a className="btn sm" href="#/creer">Créer d’autres idées</a>
+            <a className="btn sm ghost" href="#/">Accueil</a>
+          </div>
+        </div>
+      )}
       {res && (
         <div style={{ marginTop: 10 }}>
           {res.queries.length > 0 && <p className="tiny muted">Recherches effectuées : {res.queries.join(' · ')}</p>}

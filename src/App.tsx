@@ -20,6 +20,7 @@ import { Backdrop } from './components/Backdrop';
 import { useTuning } from './lib/backdropTuning';
 import Lab from './pages/Lab';
 import Create from './pages/Create';
+import Recap from './pages/Recap';
 import Improvements from './pages/Improvements';
 import { Sidebar, TopBar, Dock, MoreSheet, Palette, Capture, Toasts } from './components/shell';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -92,7 +93,7 @@ export default function App() {
     case 'docs': page = <Docs sub={path[1]} id={path[2]} query={query} />; break;
     case 'atelier': page = <Workshop query={query} />; break;
     case 'films': page = <Films id={path[1]} />; break;
-    case 'ideas': page = path[1] ? <IdeaDetail id={path[1]} /> : <Ideas />; break;
+    case 'ideas': page = path[1] ? (path[2] === 'recap' ? <Recap id={path[1]} /> : <IdeaDetail id={path[1]} />) : <Ideas />; break;
     case 'planning': page = <Planning />; break;
     case 'stats': page = <Stats />; break;
     case 'settings': page = <SettingsPage />; break;

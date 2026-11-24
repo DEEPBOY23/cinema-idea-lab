@@ -3,7 +3,8 @@ import { Dictate, useAIProvider } from '../components/ui';
 import { useMemory } from '../components/assist';
 import { createIdea } from '../lib/actions';
 import { go } from '../hooks';
-import { detectSeed, SEED_LABEL, generateFromSeed, moreAngles, generatedToIdea, type GeneratedIdea } from '../lib/create';
+import { detectSeed, SEED_LABEL, generateFromSeed, moreAngles, generatedToIdea, distinctTitle, type GeneratedIdea } from '../lib/create';
+import { addJournal } from '../lib/actions';
 import { searchLinks } from '../lib/prompts';
 
 const DRAFT = 'cil.create.draft';
@@ -91,7 +92,13 @@ function GenCard({ g, seed, onChange, onKept, memory }: { g: GeneratedIdea; seed
   };
   const keep = async (open: boolean) => {
     setBusy('keep');
-    const id = await createIdea(generatedToIdea(g, chosen, seed, memory.formats));
+    const data = generatedToIdea(g, chosen, seed, memory.formats);
+    const existing = memory.ideas.filter((x) => !x.deletedAt).map((x) => x.title);
+    const angle = chosen.length ? g.angles[chosen[0]] : g.angles[0];
+    data.title = distinctTitle(g.title, existing, angle, memory.formats.find((f) => f.id === data.formatId)?.name);
+    if (!open) { data.paused = true; data.priority = 3; }
+    const id = await createIdea(data);
+    if (!open) await addJournal('Gardée pour plus tard depuis « Créer » (en pause).', id);
     onKept();
     if (open) go(`ideas/${id}`);
   };
@@ -148,7 +155,7 @@ function GenCard({ g, seed, onChange, onKept, memory }: { g: GeneratedIdea; seed
       <div className="row wrap" style={{ marginTop: 12 }}>
         <button className="btn primary" disabled={!!busy} onClick={() => keep(true)}>Garder et développer</button>
         <button className="btn" disabled={!!busy} onClick={() => keep(false)}>Garder pour plus tard</button>
-        <span className="tiny muted">Devient une fiche d’idée avec sa structure, ses formats et son estimation.</span>
+        <span className="tiny muted">Devient une fiche d’idée avec sa structure, ses formats et son estimation. « Plus tard » la met en pause, avec l’étiquette ⏸ dans ta liste.</span>
       </div>
     </div>
   );

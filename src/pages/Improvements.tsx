@@ -5,6 +5,7 @@ import { Dictate, Empty } from '../components/ui';
 import { NAV } from '../components/shell';
 import { toast } from '../lib/toast';
 import type { Remark } from '../types';
+import { PhotoPicker, PhotoStrip } from '../components/photos';
 
 const KINDS: Record<Remark['kind'], string> = { idee: '💡 Idée', gene: '😕 Gêne', bug: '🐞 Bug' };
 const PAGES = ['Général', ...NAV.map((n) => n.label), 'Fiche d’une idée', 'Paramètres'];
@@ -15,19 +16,20 @@ export default function Improvements() {
   const [text, setText] = useState('');
   const [kind, setKind] = useState<Remark['kind']>('idee');
   const [page, setPage] = useState('Général');
+  const [photos, setPhotos] = useState<string[]>([]);
   const open = remarks.filter((r) => r.status === 'open');
   const done = remarks.filter((r) => r.status === 'done');
 
   const add = async () => {
-    const t = text.trim();
+    const t = text.trim() || (photos.length ? 'Voir la photo' : '');
     if (!t) return;
     const now = Date.now();
-    await db.remarks.add({ id: uid(), kind, text: t, page, status: 'open', at: now, updatedAt: now });
-    setText('');
+    await db.remarks.add({ id: uid(), kind, text: t, page, status: 'open', at: now, updatedAt: now, ...(photos.length ? { photos } : {}) });
+    setText(''); setPhotos([]);
     toast('Remarque notée.');
   };
   const copy = async () => {
-    const body = open.map((r) => `- [${KINDS[r.kind].slice(3)}] (${r.page}) ${r.text}`).join('\n');
+    const body = open.map((r) => `- [${KINDS[r.kind].slice(3)}] (${r.page}) ${r.text}${r.photos?.length ? ` (${r.photos.length} photo${r.photos.length > 1 ? 's' : ''} jointe${r.photos.length > 1 ? 's' : ''})` : ''}`).join('\n');
     try { await navigator.clipboard.writeText(`Mes remarques sur Cinema Idea Lab :\n${body}`); toast('Copié : colle-le à Claude.'); }
     catch { toast('Copie impossible sur cet appareil.'); }
   };
@@ -35,7 +37,7 @@ export default function Improvements() {
   return (
     <div>
       <div className="page-head">
-        <div><h1>Améliorations</h1><p className="muted small">Ce qui te gêne, ce qui manque, une idée d’évolution : note-le ici au moment où tu le vis. Copie ensuite la liste pour Claude, qui fera les changements.</p></div>
+        <div><h1>Améliorations</h1><p className="muted small">Ce qui te gêne, ce qui manque, une idée d’évolution : note-le ici au moment où tu le vis. Ajoute une capture d’écran si c’est plus parlant. Copie ensuite la liste pour Claude (touche une photo pour la télécharger et la lui envoyer).</p></div>
       </div>
 
       <div className="card">
@@ -46,8 +48,9 @@ export default function Improvements() {
         <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex. Dans Créer, je voudrais pouvoir régénérer une seule idée…" />
         <div className="row wrap" style={{ marginTop: 8 }}>
           <select value={page} onChange={(e) => setPage(e.target.value)} style={{ width: 'auto' }}>{PAGES.map((p) => <option key={p}>{p}</option>)}</select>
-          <button className="btn primary" disabled={!text.trim()} onClick={add}>Noter</button>
+          <button className="btn primary" disabled={!text.trim() && !photos.length} onClick={add}>Noter</button>
         </div>
+        <div style={{ marginTop: 8 }}><PhotoPicker photos={photos} onChange={setPhotos} /></div>
       </div>
 
       <div className="row between wrap" style={{ marginTop: 20 }}>
@@ -77,6 +80,7 @@ function RemarkRow({ r }: { r: Remark }) {
           <button className="icon-btn" title="Supprimer" onClick={() => db.remarks.delete(r.id)}>✕</button>
         </span>
       </div>
+      <PhotoStrip photos={r.photos} name={`remarque-${new Date(r.at).toISOString().slice(0, 10)}`} />
       <div className="item-meta"><span>{KINDS[r.kind]}</span><span>{r.page}</span><span>{new Date(r.at).toLocaleDateString('fr-FR')}</span></div>
     </li>
   );
