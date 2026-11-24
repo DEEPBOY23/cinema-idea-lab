@@ -2,18 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Home, Inbox, LayoutGrid, BookOpen, PenTool, Film, Lightbulb, FolderOpen, CalendarDays, BarChart3, Settings,
-  ChevronLeft, ChevronRight, Search, Bell, Plus, Star, MoreHorizontal, Mic, Check, Sparkles, X,
+  Wand2, MessageSquarePlus, ChevronLeft, ChevronRight, Search, Bell, Plus, Star, MoreHorizontal, Mic, Check, Sparkles, X,
 } from 'lucide-react';
 import { db } from '../db';
 import { go, useIdeas, useSources, useWorks, useFormats, useSettings, useSync } from '../hooks';
 import { createIdea } from '../lib/actions';
 import { ageTone } from '../lib/aging';
 import { statusRank } from '../types';
-import { Dictate, useAIProvider } from './ui';
+import { Dictate, useAIProvider, Modal } from './ui';
+import { uid } from '../lib/util';
+import { toast } from '../lib/toast';
 import { runSuggest, useMemory } from './assist';
 
 export const NAV = [
   { path: '', label: 'Accueil', Icon: Home, group: 'Créer' },
+  { path: 'creer', label: 'Créer', Icon: Wand2, group: 'Créer' },
   { path: 'bac', label: 'Bac à idées', Icon: Inbox, group: 'Créer' },
   { path: 'atelier', label: 'Atelier éditorial', Icon: PenTool, group: 'Créer' },
   { path: 'ideas', label: 'Bibliothèque', Icon: Lightbulb, group: 'Organiser' },
@@ -23,6 +26,7 @@ export const NAV = [
   { path: 'films', label: 'Filmothèque', Icon: Film, group: 'Organiser' },
   { path: 'planning', label: 'Planning', Icon: CalendarDays, group: 'Suivre' },
   { path: 'stats', label: 'Statistiques', Icon: BarChart3, group: 'Suivre' },
+  { path: 'ameliorations', label: 'Améliorations', Icon: MessageSquarePlus, group: 'Suivre' },
 ] as const;
 export const labelOf = (top: string) => (top === 'settings' ? 'Paramètres' : top === 'fond' ? 'Réglage du fond' : NAV.find((n) => n.path === top)?.label ?? 'Accueil');
 
@@ -83,6 +87,7 @@ export function Sidebar({ top }: { top: string }) {
 
 export function TopBar({ top, sub, onSearch, onCapture }: { top: string; sub?: string; onSearch: () => void; onCapture: () => void }) {
   const [bell, setBell] = useState(false);
+  const [remark, setRemark] = useState(false);
   const reminders = useReminders();
   return (
     <div className="topbar-wrap">
@@ -91,9 +96,11 @@ export function TopBar({ top, sub, onSearch, onCapture }: { top: string; sub?: s
           : <span className="brand-mobile"><span className="brand-mark" style={{ width: 26, height: 26 }}><i /><i /><i /><i /></span></span>}
         <div className="crumbs"><ChevronRight size={16} style={{ opacity: .5 }} /><b>{labelOf(top)}</b>{sub && <><ChevronRight size={16} style={{ opacity: .5 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span></>}</div>
         <button className="search-pill" onClick={onSearch} aria-label="Rechercher"><Search size={18} /><span>Rechercher…</span><kbd>⌘ K</kbd></button>
+        <button className="round-btn" aria-label="Noter une amélioration" title="Noter une remarque ou une amélioration" onClick={() => setRemark(true)}><MessageSquarePlus size={19} /></button>
         <button className="round-btn" aria-label="Rappels" onClick={() => setBell(!bell)}><Bell size={19} />{reminders.length > 0 && <span className="dot" />}</button>
         <button className="round-btn milk" aria-label="Capturer une idée" onClick={onCapture}><Plus size={20} /></button>
       </div>
+      {remark && <QuickRemark page={sub ? `${labelOf(top)} · ${sub}` : labelOf(top)} onClose={() => setRemark(false)} />}
       {bell && (
         <div className="popover glass-dense" onClick={() => setBell(false)}>
           <h3 style={{ padding: '6px 8px 0' }}>Rappels</h3>
@@ -121,10 +128,10 @@ function useReminders() {
 }
 
 export function Dock({ top, onCapture, onMore }: { top: string; onCapture: () => void; onMore: () => void }) {
-  const main = ['', 'bac'];
+  const main = ['', 'creer'];
   const main2 = ['ideas'];
-  const item = (p: string) => { const n = NAV.find((x) => x.path === p)!; const I = n.Icon; return <a key={p} href={`#/${p}`} className={top === p ? 'active' : ''}><I size={20} strokeWidth={1.7} /><small>{p === '' ? 'Accueil' : p === 'bac' ? 'Bac' : 'Idées'}</small></a>; };
-  const inMore = !['', 'bac', 'ideas'].includes(top);
+  const item = (p: string) => { const n = NAV.find((x) => x.path === p)!; const I = n.Icon; return <a key={p} href={`#/${p}`} className={top === p ? 'active' : ''}><I size={20} strokeWidth={1.7} /><small>{p === '' ? 'Accueil' : p === 'creer' ? 'Créer' : 'Idées'}</small></a>; };
+  const inMore = !['', 'creer', 'ideas'].includes(top);
   return (
     <nav className="tabbar" aria-label="Navigation">
       {main.map(item)}
@@ -139,7 +146,7 @@ export function MoreSheet({ onClose }: { onClose: () => void }) {
   return (
     <div className="more-sheet" onClick={onClose}>
       <div className="more-inner">
-        {NAV.filter((n) => !['', 'bac', 'ideas'].includes(n.path)).map(({ path, label, Icon }) => <a key={path} href={`#/${path}`}><Icon size={19} strokeWidth={1.7} />{label}</a>)}
+        {NAV.filter((n) => !['', 'creer', 'ideas'].includes(n.path)).map(({ path, label, Icon }) => <a key={path} href={`#/${path}`}><Icon size={19} strokeWidth={1.7} />{label}</a>)}
         <a href="#/settings"><Settings size={19} strokeWidth={1.7} />Paramètres</a>
       </div>
     </div>
@@ -230,3 +237,30 @@ export function Toasts() {
 }
 
 export { Mic };
+
+/** Remarque rapide depuis n'importe quel écran : fenêtre par-dessus la page, on reste où on était. */
+function QuickRemark({ page, onClose }: { page: string; onClose: () => void }) {
+  const [text, setText] = useState('');
+  const [kind, setKind] = useState<'idee' | 'gene' | 'bug'>('idee');
+  const save = async () => {
+    const now = Date.now();
+    await db.remarks.add({ id: uid(), kind, text: text.trim(), page, status: 'open', at: now, updatedAt: now });
+    toast('Remarque notée. Retrouve-les dans Améliorations.');
+    onClose();
+  };
+  return (
+    <Modal open onClose={onClose} title="Noter une amélioration">
+      <p className="tiny muted" style={{ marginTop: 0 }}>Écran : {page}. Tu restes sur ta page.</p>
+      <div className="row between wrap" style={{ marginBottom: 6 }}>
+        <div className="seg">{([['idee', '💡 Idée'], ['gene', '😕 Gêne'], ['bug', '🐞 Bug']] as const).map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div>
+        <Dictate onText={(t) => setText((x) => (x ? x + ' ' : '') + t)} />
+      </div>
+      <textarea autoFocus rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ce qui te gêne, ce qui manque…" />
+      <div className="row wrap" style={{ marginTop: 8 }}>
+        <button className="btn primary" disabled={!text.trim()} onClick={save}>Noter</button>
+        <button className="btn ghost" onClick={onClose}>Annuler</button>
+        <a className="small" href="#/ameliorations" onClick={onClose} style={{ marginLeft: 'auto' }}>Voir toutes mes remarques →</a>
+      </div>
+    </Modal>
+  );
+}

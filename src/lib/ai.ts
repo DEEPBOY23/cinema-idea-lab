@@ -258,10 +258,20 @@ const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./,
 
 const GKEY_GROUNDING = 'cil.grounding';
 /** La recherche Google de Gemini n'est pas incluse dans l'offre gratuite : on mémorise un refus pour prévenir d'emblée. */
-export const groundingRefused = () => { try { return localStorage.getItem(GKEY_GROUNDING) === 'quota'; } catch { return false; } };
-const setGroundingRefused = (v: boolean) => { try { v ? localStorage.setItem(GKEY_GROUNDING, 'quota') : localStorage.removeItem(GKEY_GROUNDING); } catch { /* */ } };
+// Le refus expire au bout de 24 h : si tu passes en payant (ou si Google change d'avis), l'app réessaie seule.
+export const groundingRefused = () => {
+  try {
+    const v = localStorage.getItem(GKEY_GROUNDING);
+    if (!v) return false;
+    const at = Number(v.split(':')[1]);
+    if (!at || Date.now() - at > 24 * 3600_000) { localStorage.removeItem(GKEY_GROUNDING); return false; }
+    return true;
+  } catch { return false; }
+};
+const setGroundingRefused = (v: boolean) => { try { v ? localStorage.setItem(GKEY_GROUNDING, `quota:${Date.now()}`) : localStorage.removeItem(GKEY_GROUNDING); } catch { /* */ } };
 export const clearGroundingRefusal = () => setGroundingRefused(false);
-export const GROUNDING_REFUSED_MSG = 'La recherche Google de Gemini n’est pas incluse dans l’offre gratuite (Google la refuse avec ta clé : quota à zéro). Utilise les liens de recherche ci-dessous ; elle fonctionnera si tu actives un jour la facturation sur Google AI Studio.';
+export const markGroundingRefused = () => setGroundingRefused(true);
+export const GROUNDING_REFUSED_MSG = 'La recherche Google de Gemini n’est pas incluse dans l’offre gratuite (Google la refuse avec ta clé : quota à zéro). En gratuit, l’assistant te propose à la place des pistes de recherche prêtes à ouvrir. Les vrais liens automatiques fonctionnent en plan Payant.';
 
 export async function searchWebSources(prompt: string, signal?: AbortSignal): Promise<GroundedResult> {
   const cfg = getGeminiConfig();
@@ -354,3 +364,13 @@ export function extractJson<T>(text: string): T {
 }
 
 export { getClaudeConfig };
+
+// ---------------- Pistes de recherche (sans recherche Google : fonctionne en gratuit) ----------------
+export interface ResearchLead { query: string; why: string; kind: string }
+/** L'IA propose des recherches ciblées (qui, quoi, quel type de source). Aucun lien inventé : ce sont des requêtes. */
+export async function researchLeads(prompt: string, signal?: AbortSignal): Promise<ResearchLead[]> {
+  const { data } = await askAIJson<{ leads: ResearchLead[] }>(
+    `Tu aides un vidéaste cinéma à se documenter. Tu n'as PAS accès au web : ne donne aucune URL et n'invente aucun titre d'article. Propose 5 à 6 recherches précises à taper dans un moteur (noms propres, chef opérateur, termes techniques, en anglais si les sources sont surtout anglophones), chacune avec ce qu'elle doit permettre de trouver et le type de source visé (interview, making-of, article technique, analyse, masterclass). Tutoie. Réponds en JSON : {"leads":[{"query":"","why":"","kind":""}]}`,
+    prompt, signal);
+  return (data.leads ?? []).filter((l) => l?.query).slice(0, 6);
+}

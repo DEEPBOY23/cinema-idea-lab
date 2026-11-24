@@ -178,3 +178,9 @@ export interface InboxItem {
   suggestions?: Suggestions; status: 'pending' | 'converted' | 'dismissed'; ideaId?: string;
   createdAt: number; updatedAt: number;
 }
+
+/** Remarque ou amélioration notée sur l'app (onglet Améliorations). */
+export interface Remark {
+  id: string; kind: 'idee' | 'gene' | 'bug'; text: string; page: string;
+  status: 'open' | 'done'; at: number; updatedAt: number;
+}

@@ -2,11 +2,11 @@ import Dexie, { type Table } from 'dexie';
 import dexieCloud from 'dexie-cloud-addon';
 import type {
   Idea, IdeaEvent, TimeSession, Work, Format, Source, ReadingNote, Lead, JournalEntry,
-  WorkshopEntry, Version, Settings, LocalFile, AutoBackup, InboxItem,
+  WorkshopEntry, Version, Settings, LocalFile, AutoBackup, InboxItem, Remark,
 } from './types';
 
 export const SYNCED_TABLES = [
-  'ideas', 'inbox', 'events', 'sessions', 'works', 'formats', 'sources', 'notes', 'leads', 'journal', 'workshops', 'versions', 'settings',
+  'ideas', 'inbox', 'events', 'sessions', 'works', 'formats', 'sources', 'notes', 'leads', 'journal', 'workshops', 'versions', 'settings', 'remarks',
 ] as const;
 export const LOCAL_TABLES = ['localFiles', 'autoBackups'] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
@@ -14,6 +14,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number];
 export class LabDB extends Dexie {
   ideas!: Table<Idea, string>;
   inbox!: Table<InboxItem, string>;
+  remarks!: Table<Remark, string>;
   events!: Table<IdeaEvent, string>;
   sessions!: Table<TimeSession, string>;
   works!: Table<Work, string>;
@@ -49,7 +50,9 @@ export class LabDB extends Dexie {
     });
     // v2 : bac à idées (aucune donnée existante à transformer)
     this.version(2).stores({ inbox: 'id, batchId, status, createdAt' });
+    // v3 : remarques et améliorations
+    this.version(3).stores({ remarks: 'id, status, at' });
   }
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;

@@ -59,7 +59,7 @@ export default function Home() {
         <div className="row wrap" style={{ marginTop: 8 }}>
           <button className="btn primary" disabled={!text.trim()} onClick={() => capture(false)}>Enregistrer</button>
           <button className="btn" disabled={!text.trim()} onClick={() => capture(true)}>Enregistrer et développer</button>
-          <a className="small" href="#/bac" style={{ marginLeft: 'auto' }}>Plusieurs idées d’un coup ? Bac à idées →</a>
+          <span className="small" style={{ marginLeft: 'auto' }}><a href="#/creer">✦ Une phrase → plusieurs idées</a> · <a href="#/bac">Bac à idées</a></span>
         </div>
         {note && <p className="small muted" style={{ marginTop: 6 }}>{note} {note.includes('format proposé') && <a href="#/ideas">Voir</a>}</p>}
       </div>

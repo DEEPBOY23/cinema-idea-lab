@@ -16,6 +16,11 @@ import { useAIProvider } from '../components/ui';
 import { useRef } from 'react';
 import { ArticleRow, AddArticle, ReadProgress, SummarizeAll } from '../components/articles';
 import { useIdeas } from '../hooks';
+import { completePostStructure, structureToBeats } from '../lib/create';
+import { WebSourceFinder } from '../components/webSources';
+import { liveEstimate, aiEstimate } from '../lib/estimate';
+import { proposeAngles, reworkText } from '../lib/devAssist';
+import { toast } from '../lib/toast';
 
 const LEVELS: { id: ResearchLevelId; label: string; hint: string }[] = [
   { id: 'light', label: 'Légère', hint: 'Une scène ou une technique précise, simple à documenter.' },
@@ -103,6 +108,8 @@ export default function IdeaDetail({ id }: { id: string }) {
       </div>
       <p className="muted tiny">Étapes flexibles : tu peux sauter une étape ou revenir en arrière, chaque transition est historisée.</p>
 
+      <EstimateBar idea={idea} fmt={fmt} formats={formats} ctx={ctx} />
+
       <Section title={`Formats proposés${idea.suggestions?.formats.length ? ` (${idea.suggestions.formats.length})` : ''}`} open={!idea.formatId || !!idea.suggestions}>
         <FormatSuggestionsPanel idea={idea} />
       </Section>
@@ -133,19 +140,24 @@ export default function IdeaDetail({ id }: { id: string }) {
         )}
       </Section>
 
-      <Section title={`Angles envisagés (${idea.angles.length})`} open={idea.angles.length > 0}>
-        <AnglesEditor idea={idea} />
+      <Section title={`Angles envisagés (${idea.angles.length})`} open={idea.angles.length > 0} right={<AiBtn label="✦ Proposer 3 angles" run={async () => { const r = await proposeAngles(idea, ctx); toast(`${r.count} angles ajoutés.`); }} />}>
+        <AnglesEditor idea={idea} ctx={ctx} />
       </Section>
 
-      <Section title="Niveau de recherche documentaire" open={!!idea.research}>
+      <Section title="Niveau de recherche documentaire" open={!!idea.research} right={<AiBtn label="✦ Remplir et estimer" run={async () => { const t = await aiEstimate(idea, ctx); toast(`Estimation de l’assistant : ≈ ${t} h.`); }} />}>
         <ResearchPanel idea={idea} docLoad={fmt?.docLoad} />
       </Section>
 
       <Section title={`Structure narrative${idea.structure.length ? ` · ${totalSec} s` : ''}`} open={idea.structure.length > 0}>
-        <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} />
+        <PostStructureAI idea={idea} memory={memory} fmt={fmt} setBeats={setBeats} />
+        <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} ctx={ctx} />
       </Section>
 
-      <Section title="Script (facultatif)" open={!!idea.script}>
+      <Section title="Script (facultatif)" open={!!idea.script} right={<AiBtn label={idea.script.trim() ? '✦ Retravailler' : '✦ Premier jet'} run={async () => {
+        const t = await reworkText('le script', idea.script, ctx, `Exception : ici on te demande bien un texte rédigé, à dire face caméra, d'après la structure de la fiche${target ? `, pour environ ${target} secondes à l'oral` : ''}.`);
+        if (idea.script.trim()) await snapshot('ideas', idea.id, 'script', idea.script, 'manual');
+        await updateIdea(idea.id, { script: t }); toast('Script mis à jour (l’ancienne version est dans l’historique).');
+      }} />}>
         <Field table="ideas" id={id} field="script" value={idea.script} multiline rows={10} versioned placeholder="Le script reste facultatif. Tu peux aussi le coller dans l’atelier pour un diagnostic." />
         <p className="muted small" style={{ marginTop: 6 }}>{wordCount(idea.script)} mots · ≈ {oralSeconds(idea.script, settings.wpm)} s à l’oral ({settings.wpm} mots/min){target ? ` · cible ${target} s` : ''}</p>
         <details><summary className="small muted">Versions antérieures du script</summary>
@@ -164,6 +176,7 @@ export default function IdeaDetail({ id }: { id: string }) {
         ) : <p className="muted small">Aucun article pour l’instant. La documentation passe avant l’écriture : colle ci-dessous les liens que tu trouves.</p>}
         <div className="row wrap" style={{ marginTop: 8 }}><SummarizeAll items={iSources} idea={idea} /></div>
         <div style={{ marginTop: 10 }}><AddArticle ideaId={id} /></div>
+        <details style={{ marginTop: 10 }}><summary className="small"><b>✦ Trouver des sources avec l’IA</b></summary><div style={{ marginTop: 8 }}><WebSourceFinder subject={idea.angle || idea.title} idea={idea} /></div></details>
         <div className="row wrap" style={{ marginTop: 8 }}>
           <a className="btn sm ghost" href={`#/docs?idea=${id}&tab=search`}>Chercher des articles</a>
           <button className="btn sm ghost" onClick={async () => go(`docs/note/${await createNote({ ideaId: id, title: `Notes — ${idea.title}` })}`)}>+ Notes après lecture</button>
@@ -213,7 +226,7 @@ export default function IdeaDetail({ id }: { id: string }) {
   );
 }
 
-function AnglesEditor({ idea }: { idea: Idea }) {
+function AnglesEditor({ idea, ctx }: { idea: Idea; ctx: any }) {
   const [t, setT] = useState('');
   const save = (angles: Idea['angles']) => updateIdea(idea.id, { angles });
   return (
@@ -222,6 +235,7 @@ function AnglesEditor({ idea }: { idea: Idea }) {
         <div key={a.id} className="row" style={{ alignItems: 'flex-start', marginBottom: 6 }}>
           <input type="checkbox" checked={a.chosen} onChange={(e) => save(idea.angles.map((x, j) => (j === i ? { ...x, chosen: e.target.checked } : x)))} title="Retenir (tu peux en combiner plusieurs)" style={{ marginTop: 10 }} />
           <textarea rows={2} value={a.text} onChange={(e) => save(idea.angles.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
+          <AiBtn icon label="✦" title="Retravailler cet angle avec l’IA" run={async () => { const t = await reworkText('cet angle', a.text, ctx); await save(idea.angles.map((x, j) => (j === i ? { ...x, text: t } : x))); }} />
           <span className="chip tiny">{a.origin}</span>
           <button className="icon-btn" onClick={() => save(idea.angles.filter((_, j) => j !== i))} aria-label="Supprimer">✕</button>
         </div>
@@ -275,7 +289,7 @@ function ResearchText({ label, value, onSave }: { label: string; value: string; 
   return <label className="field"><span className="field-label">{label}</span><textarea rows={2} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== value && onSave(v)} /></label>;
 }
 
-function StructureEditor({ idea, beats, setBeats, fmt, target, total }: { idea: Idea; beats: Beat[]; setBeats: (b: Beat[]) => void; fmt?: ReturnType<typeof useFormats>[number]; target?: number; total: number }) {
+function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { idea: Idea; beats: Beat[]; setBeats: (b: Beat[]) => void; fmt?: ReturnType<typeof useFormats>[number]; target?: number; total: number; ctx: any }) {
   const [local, setLocal] = useState(beats);
   useEffect(() => setLocal(beats), [JSON.stringify(beats)]);
   const commit = (b: Beat[]) => { setLocal(b); setBeats(b); };
@@ -300,6 +314,7 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total }: { idea: 
           <input value={b.label} onChange={(e) => edit(i, { label: e.target.value })} onBlur={() => commit(local)} />
           <input type="number" min={0} value={b.seconds} onChange={(e) => edit(i, { seconds: Number(e.target.value) })} onBlur={() => commit(local)} title="secondes" />
           <div className="row">
+            <AiBtn icon label="✦" title="Retravailler ce temps fort avec l’IA" run={async () => { const t = await reworkText(`le temps fort « ${b.label} » (${b.seconds} s)`, b.content, ctx, 'Une intention et ce qu’on montre, en 1 à 3 phrases.'); commit(local.map((x, j) => (j === i ? { ...x, content: t, weak: false } : x))); }} />
             <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">↑</button>
             <button className="icon-btn" disabled={i === local.length - 1} onClick={() => move(i, 1)} aria-label="Descendre">↓</button>
             <button className={`chip ${b.weak ? 'on' : ''}`} onClick={() => commit(local.map((x, j) => (j === i ? { ...x, weak: !x.weak } : x)))} title="Marquer comme partie faible à améliorer">faible</button>
@@ -467,5 +482,54 @@ function LinkSourcesModal({ open, onClose, ideaId }: { open: boolean; onClose: (
       {!sources.length && <Empty>Aucune source enregistrée.</Empty>}
       <p className="muted tiny" style={{ marginTop: 8 }}>Semaine en cours : {isoWeek(Date.now())}</p>
     </Modal>
+  );
+}
+
+/** ✦ L'assistant construit ou complète la structure de post (Hook · Intro · Angles · Contradiction · Conclusion) sans effacer ce qui est écrit. */
+function PostStructureAI({ idea, memory, fmt, setBeats }: { idea: Idea; memory: ReturnType<typeof useMemory>; fmt?: Parameters<typeof structureToBeats>[1]; setBeats: (b: Beat[]) => void }) {
+  const provider = useAIProvider();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const run = async () => {
+    setBusy(true); setErr('');
+    try {
+      const s = await completePostStructure(idea, memory);
+      if (idea.structure.length) await snapshot('ideas', idea.id, 'structure', JSON.stringify(idea.structure), 'manual');
+      setBeats(structureToBeats(s, fmt));
+    } catch (e: any) { setErr(e?.message ?? String(e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="note small" style={{ marginBottom: 10 }}>
+      <div className="row between wrap">
+        <span><b>✦ Structure du post</b> · Hook, intro, angles, contradiction, conclusion. L’assistant garde ce que tu as déjà écrit et complète le reste.</span>
+        {provider === 'none' ? <a className="btn sm" href="#/settings">Brancher Gemini (gratuit)</a> : <button className="btn sm primary" disabled={busy} onClick={run}>{busy ? 'L’assistant structure…' : idea.structure.length ? 'Compléter avec l’IA' : 'Structurer avec l’IA'}</button>}
+      </div>
+      {err && <p className="small tag-hypothesis" style={{ margin: '6px 0 0' }}>{err}</p>}
+    </div>
+  );
+}
+
+/** Bouton d'action IA : gère l'attente et les erreurs ; invisible sans assistant branché. */
+function AiBtn({ label, run, icon, title }: { label: string; run: () => Promise<void>; icon?: boolean; title?: string }) {
+  const provider = useAIProvider();
+  const [busy, setBusy] = useState(false);
+  if (provider === 'none') return null;
+  const go_ = async () => { setBusy(true); try { await run(); } catch (e: any) { toast(e?.message ?? String(e)); } setBusy(false); };
+  return <button className={icon ? 'icon-btn ai-btn' : 'btn sm'} title={title} disabled={busy} onClick={go_}>{busy ? (icon ? '…' : 'L’assistant travaille…') : label}</button>;
+}
+
+/** Estimation globale du temps, recalculée en direct (gratuit) ; l'IA seulement sur demande. */
+function EstimateBar({ idea, fmt, formats, ctx }: { idea: Idea; fmt?: ReturnType<typeof useFormats>[number]; formats: ReturnType<typeof useFormats>; ctx: any }) {
+  const e = liveEstimate(idea, fmt, formats);
+  return (
+    <div className="estimate-bar">
+      <div>
+        <b className="estimate-total">≈ {e.total} h</b>
+        <span className="small muted"> · documentation {e.doc} h · tournage {e.shoot} h · montage {e.edit} h</span>
+        <div className="tiny muted">En direct, d’après {e.basis}{e.changes.length ? ` + ${e.changes.join(', ')}` : ''}. Calcul gratuit, sans IA.</div>
+      </div>
+      <AiBtn label="✦ Ré-estimer avec l’IA" run={async () => { const t = await aiEstimate(idea, ctx); toast(`Estimation de l’assistant : ≈ ${t} h.`); }} />
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import { Section } from '../components/ui';
 import { fmtDateTime } from '../lib/util';
 import { DEFAULT_SYNC_URL } from '../config';
 import { getClaudeConfig, setClaudeConfig, clearClaudeConfig, testClaudeKey, CLAUDE_MODELS } from '../lib/claude';
+import { diagnoseAI, type Check } from '../lib/diagnose';
 import { getOpenAIConfig, setOpenAIConfig, clearOpenAIConfig, listOpenAIModels, pickOpenAIModel, openAITierOf, openAIMonthlyEstimate, OPENAI_TIERS, type OpenAITier, setProvider, providerLabel, getGeminiConfig, setGeminiConfig, clearGeminiConfig, probeGeminiModels, listGeminiModels, clearGroundingRefusal } from '../lib/ai';
 import { useAIProvider } from '../components/ui';
 
@@ -15,6 +16,7 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="page-head"><div><h1>Paramètres</h1><p className="muted small">Appareil : {deviceId}</p></div></div>
+      <AiCheck />
       <SyncSection />
       <AssistantSection />
       <BackupSection />
@@ -415,5 +417,27 @@ function AssistantSection() {
         </ul>
       </details>
     </Section>
+  );
+}
+
+/** Teste l'assistant niveau par niveau sur CET appareil (à lancer aussi sur le téléphone). */
+function AiCheck() {
+  const [checks, setChecks] = useState<Check[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => { setBusy(true); setChecks([]); await diagnoseAI(setChecks); setBusy(false); };
+  return (
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div className="row between wrap">
+        <div><h3 style={{ margin: 0 }}>Tester l’assistant sur cet appareil</h3><p className="tiny muted" style={{ margin: '4px 0 0' }}>Vérifie chaque niveau : texte, réponses structurées, recherche Google, lecture d’articles. Coût : quelques fractions de centime.</p></div>
+        <button className="btn sm primary" disabled={busy} onClick={run}>{busy ? 'Test en cours…' : 'Tester'}</button>
+      </div>
+      {checks && checks.map((c) => (
+        <div key={c.name} className="row" style={{ alignItems: 'flex-start', padding: '6px 0', borderTop: '1px solid var(--line)', flexWrap: 'nowrap' }}>
+          <span style={{ flex: 'none', width: 22 }}>{c.ok === null ? '–' : c.ok ? '✅' : '⚠️'}</span>
+          <span className="small" style={{ flex: 1, minWidth: 0 }}><b>{c.name}</b><br /><span className="muted">{c.detail}</span></span>
+        </div>
+      ))}
+      {busy && <p className="tiny muted" style={{ marginTop: 6 }}>Chaque étape peut prendre jusqu’à une minute.</p>}
+    </div>
   );
 }

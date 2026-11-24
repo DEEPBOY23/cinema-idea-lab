@@ -74,7 +74,11 @@ export default function Inbox() {
         <h2 style={{ margin: 0 }}>À trier · du plus rapide au plus long ({pending.length})</h2>
         {pending.length > 1 && <button className="btn sm" onClick={async () => { for (const it of pending) await convert(it); }}>Tout transformer en idées</button>}
       </div>
-      {pending.length ? pending.map((it, idx) => <InboxCard key={it.id} it={it} rank={idx + 1} memory={memory} onConvert={async () => go(`ideas/${await convert(it)}`)} onConvertStay={() => convert(it)} />)
+      {pending.length ? pending.map((it, idx) => {
+          const band = (h: number) => (h <= 3 ? '⚡ Rapide · 3 h ou moins' : h <= 8 ? '◐ Moyen · une journée' : h < 1e9 ? '◉ Long · plusieurs jours' : 'Non estimé');
+          const b = band(totalOf(it.suggestions)), prev = idx ? band(totalOf(pending[idx - 1].suggestions)) : '';
+          return <div key={it.id}>{b !== prev && <p className="field-label" style={{ margin: '14px 0 4px' }}>{b}</p>}<InboxCard it={it} rank={idx + 1} memory={memory} onConvert={async () => go(`ideas/${await convert(it)}`)} onConvertStay={() => convert(it)} /></div>;
+        })
         : <Empty>Rien à trier. Verse des idées ci-dessus.</Empty>}
 
       <ExistingRanking />

@@ -798,3 +798,8 @@ html, body { overflow-x: clip; }
   .main { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
   .topbar-wrap { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 }
+
+/* Estimation globale en direct (fiche idée) */
+.estimate-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; padding: 12px 16px; border-radius: 18px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
+.estimate-total { font-size: 1.35rem; margin-right: 2px; }
+.icon-btn.ai-btn { color: var(--copper-hi); }

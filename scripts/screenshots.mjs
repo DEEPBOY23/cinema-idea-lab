@@ -26,7 +26,24 @@ try {
   await page.waitForFunction(() => !!globalThis.__cilDb);
   const ids = await page.evaluate(seed);
 
+  if (process.env.DEMO_AI) await page.evaluate(() => { // maquette : fausse clé pour afficher les boutons IA (aucun appel n'est fait)
+    localStorage.setItem('cil.gemini', JSON.stringify({ apiKey: 'demo', model: 'gemini-3.8-flash', models: ['gemini-3.8-flash'], plan: 'paid', paidTier: 'standard' }));
+    localStorage.setItem('cil.ai.provider', 'gemini');
+  });
+  await page.evaluate(() => {
+    localStorage.setItem('cil.create.draft', JSON.stringify('Dans Her, tout le monde porte du corail sauf quand Theodore est seul.'));
+    localStorage.setItem('cil.create.results', JSON.stringify([
+      { title: 'Le corail, couleur de la présence', summary: 'La couleur dit quand Theodore se sent accompagné.', angles: ['Le corail apparaît quand Samantha parle', 'Les scènes seules sont désaturées', 'Hypothèse : la couleur remplace le contrechamp'], formats: [{ formatId: 'fmt-color-stories', fit: 'high', reason: 'Une couleur, une émotion', angle: '' }], estimate: { level: 'light', docHours: 1, shootHours: 1, editHours: 1.5, totalHours: 3.5, why: 'Extraits faciles à trouver' }, structure: { hook: 'Regarde la chemise de Theodore.', intro: 'Dans Her, le corail est partout… sauf à un moment précis.', angles: ['Le corail suit la voix de Samantha', 'Seul, le cadre se vide de couleur'], contradiction: 'On peut aussi y voir une simple charte de costumes.', conclusion: 'La couleur joue le rôle d’un personnage invisible.' }, searches: ['Hoyte van Hoytema Her interview color', 'Her costume designer coral'] },
+      { title: 'Filmer quelqu’un qui n’existe pas', summary: 'Comment on cadre un dialogue avec une voix.', angles: ['Pas de contrechamp', 'Le visage comme écran'], formats: [], estimate: { level: 'moderate', docHours: 2, shootHours: 2, editHours: 3, totalHours: 7, why: '' }, structure: { hook: 'Il parle à quelqu’un. Mais où est-elle ?', intro: '', angles: [], contradiction: '', conclusion: '' }, searches: [] },
+    ]));
+  });
+  await page.evaluate(async () => { const db = globalThis.__cilDb; await db.remarks.put({ id: 'r1', kind: 'gene', text: 'Trop d’onglets, je ne sais pas où commencer.', page: 'Général', status: 'open', at: Date.now(), updatedAt: Date.now() }); });
+
   const routes = [
+    ['00-creer', '#/creer'],
+    ['23-ameliorations', '#/ameliorations'],
+    ['24-remarque-rapide', `#/ideas/${ids.idea}`, '[aria-label="Noter une amélioration"]'],
+    ['25-tester-assistant', '#/settings'],
     ['01-accueil', '#/'],
     ['02-bac-a-idees', '#/bac'],
     ['03-formats', '#/formats'],
@@ -56,7 +73,7 @@ try {
     const dir = join(OUT, device);
     mkdirSync(dir, { recursive: true });
     await page.setViewport(vp);
-    for (const [name, hash] of routes) {
+    for (const [name, hash, click] of routes.filter(([n]) => !process.env.ONLY || process.env.ONLY.split(',').some((o) => n.startsWith(o)))) {
       await page.goto(BASE + hash, { waitUntil: 'networkidle0' });
       await page.reload({ waitUntil: 'networkidle0' }); // relit les paramètres de l'URL (mode de l'atelier)
       await new Promise((r) => setTimeout(r, 600));
@@ -65,6 +82,7 @@ try {
         window.scrollTo(0, 0);
       });
       if (FULL) await page.addStyleTag({ content: '.tabbar{position:static!important;margin:16px 12px} .main{padding-bottom:16px!important} .topbar-wrap{position:static!important}' });
+      if (click) { await page.click(click); await new Promise((r) => setTimeout(r, 400)); }
       await new Promise((r) => setTimeout(r, 1200));
       await page.screenshot({ path: join(dir, `${name}.png`), fullPage: FULL });
       console.log(device, name);

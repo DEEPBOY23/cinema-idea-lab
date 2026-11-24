@@ -70,3 +70,12 @@ export async function applyTip(idea: Idea, tip: WeakTip) {
   if (!tip.beatId) return;
   await updateIdea(idea.id, { structure: idea.structure.map((b) => (b.id === tip.beatId ? { ...b, content: [b.content, `Piste : ${tip.suggestion}`].filter(Boolean).join('\n'), weak: false } : b)) });
 }
+
+/** Retravaille un élément précis de la fiche (un angle, un temps fort, le script). Renvoie le nouveau texte. */
+export async function reworkText(what: string, text: string, ctx: PromptCtx, instruction = '', signal?: AbortSignal): Promise<string> {
+  const { data } = await askAIJson<{ text: string }>(
+    sys(`Retravaille ${what}. ${text.trim() ? 'Garde son idée et sa voix, rends-le plus clair, plus visuel et plus percutant.' : 'Il est vide : propose-le à partir du reste de la fiche.'} ${instruction}`, '{"text":"la nouvelle version"}'),
+    `${ideaContext(ctx)}\n\nTexte actuel de ${what} :\n"""${text}"""`, signal);
+  if (!data.text?.trim()) throw new Error('L’assistant n’a rien proposé. Réessaie.');
+  return data.text.trim();
+}

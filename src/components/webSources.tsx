@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Idea } from '../types';
-import { searchWebSources, groundingAvailable, groundingRefused, GROUNDING_REFUSED_MSG, type GroundedResult } from '../lib/ai';
+import { searchWebSources, groundingAvailable, groundingRefused, researchLeads, getProvider, type GroundedResult, type ResearchLead } from '../lib/ai';
+import { searchLinks } from '../lib/prompts';
 import { createSource } from '../lib/actions';
 import { useAIProvider } from './ui';
 import { useSources, useWorks, useFormats } from '../hooks';
@@ -17,19 +18,12 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
   const [msg, setMsg] = useState('');
   const abort = useRef<AbortController | null>(null);
 
-  if (!groundingAvailable()) {
-    return <p className="small muted">Recherche web automatique : branche <a href="#/settings">Gemini (gratuit)</a> dans Paramètres. En attendant, utilise les liens de recherche ci-dessous.</p>;
+  const [refused, setRefused] = useState(groundingRefused());
+  if (getProvider() === 'none') {
+    return <p className="small muted">Recherche assistée : branche <a href="#/settings">Gemini (gratuit)</a> dans Paramètres. En attendant, utilise les liens de recherche ci-dessous.</p>;
   }
-
-  if (groundingRefused() && !res && !busy) {
-    return (
-      <div className="card">
-        <h3 style={{ margin: 0 }}>Vraies sources sur le web</h3>
-        <p className="small muted" style={{ margin: '6px 0' }}>{GROUNDING_REFUSED_MSG}</p>
-        <button className="btn sm ghost" onClick={() => { try { localStorage.removeItem('cil.grounding'); } catch { /* */ } run(); }}>Réessayer quand même</button>
-        {msg && msg !== GROUNDING_REFUSED_MSG && <p className="small">{msg}</p>}
-      </div>
-    );
+  if (!groundingAvailable() || (refused && !res && !busy)) {
+    return <LeadsFinder subject={subject} idea={idea} onRetry={groundingAvailable() ? () => { try { localStorage.removeItem('cil.grounding'); } catch { /* */ } setRefused(false); run(); } : undefined} />;
   }
 
   async function run() {
@@ -50,7 +44,8 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
       setRes(r);
       setChecked(Object.fromEntries(r.sources.map((s) => [s.url, !existing.some((e) => e.url === s.url)])));
     } catch (e: any) {
-      setMsg(e?.name === 'AbortError' ? 'Recherche annulée.' : (e?.message ?? String(e)));
+      if (groundingRefused()) setRefused(true);
+      else setMsg(e?.name === 'AbortError' ? 'Recherche annulée.' : (e?.message ?? String(e)));
     }
     setBusy(false);
   }
@@ -105,6 +100,48 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Offre gratuite : l'assistant propose des pistes de recherche, chacune ouvre la recherche toute prête. */
+function LeadsFinder({ subject, idea, onRetry }: { subject: string; idea?: Idea; onRetry?: () => void }) {
+  const works = useWorks();
+  const formats = useFormats();
+  const [busy, setBusy] = useState(false);
+  const [leads, setLeads] = useState<ResearchLead[] | null>(null);
+  const [msg, setMsg] = useState('');
+  const abort = useRef<AbortController | null>(null);
+  const run = async () => {
+    const iw = works.filter((w) => idea?.workIds.includes(w.id)).map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}${w.director ? `, ${w.director}` : ''}`);
+    const fmt = formats.find((f) => f.id === idea?.formatId);
+    const prompt = [`Sujet : ${subject || idea?.title || ''}`, iw.length ? `Œuvre(s) : ${iw.join(' ; ')}` : '', fmt ? `Format : ${fmt.name} — ${fmt.promise}` : '', idea?.observation ? `Observation : ${idea.observation}` : '', idea?.angle ? `Angle : ${idea.angle}` : ''].filter(Boolean).join('\n');
+    setBusy(true); setMsg('');
+    abort.current = new AbortController();
+    try { setLeads(await researchLeads(prompt, abort.current.signal)); }
+    catch (e: any) { setMsg(e?.name === 'AbortError' ? 'Annulé.' : (e?.message ?? String(e))); }
+    setBusy(false);
+  };
+  return (
+    <div className="card">
+      <div className="row between wrap">
+        <div><h3 style={{ margin: 0 }}>Pistes de recherche</h3><p className="tiny muted" style={{ margin: '4px 0 0' }}>Offre gratuite : l’assistant te dit quoi chercher et où. Chaque piste ouvre la recherche toute prête ; aucun lien inventé.</p></div>
+        {busy ? <button className="btn sm" onClick={() => abort.current?.abort()}>Annuler…</button>
+          : <button className="btn sm primary" disabled={!(subject || idea)} onClick={run}>✦ {leads ? 'Autres pistes' : 'Trouver des pistes'}</button>}
+      </div>
+      {msg && <p className="small tag-hypothesis" style={{ marginTop: 8 }}>{msg}</p>}
+      {leads && (
+        <ul className="list" style={{ marginTop: 10 }}>
+          {leads.map((l) => (
+            <li key={l.query} style={{ cursor: 'default' }}>
+              <div className="row between wrap"><span className="item-title">{l.query}</span>{l.kind && <span className="chip">{l.kind}</span>}</div>
+              {l.why && <div className="item-meta"><span>{l.why}</span></div>}
+              <div className="row wrap" style={{ marginTop: 6 }}>{searchLinks(l.query).slice(0, 3).map((x) => <a key={x.label} className="btn sm ghost" href={x.url} target="_blank" rel="noreferrer">{x.label} ↗</a>)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {onRetry && <p className="tiny muted" style={{ marginTop: 8 }}>Les vrais liens automatiques (recherche Google) demandent le plan Payant. <button className="btn sm ghost" onClick={onRetry}>Réessayer la recherche Google</button></p>}
     </div>
   );
 }

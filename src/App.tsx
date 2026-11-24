@@ -19,6 +19,8 @@ import { Modal } from './components/ui';
 import { Backdrop } from './components/Backdrop';
 import { useTuning } from './lib/backdropTuning';
 import Lab from './pages/Lab';
+import Create from './pages/Create';
+import Improvements from './pages/Improvements';
 import { Sidebar, TopBar, Dock, MoreSheet, Palette, Capture, Toasts } from './components/shell';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -82,6 +84,8 @@ export default function App() {
   let page;
   switch (top) {
     case '': page = <Home />; break;
+    case 'creer': page = <Create />; break;
+    case 'ameliorations': page = <Improvements />; break;
     case 'bac': page = <Inbox />; break;
     case 'articles': page = <Articles />; break;
     case 'formats': page = <Formats id={path[1]} />; break;
