@@ -9,4 +9,5 @@ export const HANDLED_BY_CLAUDE: Record<string, string> = Object.fromEntries([
   ['c9ef9552-55c0-418b-9496-0870f6b6bc67', '2026-11-25'],
   ['d09d7e09-e10c-43cf-8c70-d65e045ecba0', '2026-11-25'],
   ['feb7c170-0520-4674-aca0-34480a9fee2a', '2026-11-25'],
+  ['960e24d5-e3d2-4b6e-b198-899e20970112', '2026-11-25'],
 ]);

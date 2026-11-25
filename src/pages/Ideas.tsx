@@ -9,7 +9,7 @@ import { ageTone } from '../lib/aging';
 import { variantFamilies } from '../lib/create';
 import { ideaStage, STAGE_LABEL, type Stage } from '../lib/stage';
 
-type Sort = 'activity' | 'created' | 'priority' | 'age';
+type Sort = 'activity' | 'created' | 'num' | 'priority' | 'age';
 
 export default function Ideas() {
   const ideas = useIdeas();
@@ -41,6 +41,7 @@ export default function Ideas() {
     l = [...l].sort((a, b) => {
       if (!!a.favorite !== !!b.favorite) return a.favorite ? -1 : 1;
       if (sort === 'created') return b.createdAt - a.createdAt;
+      if (sort === 'num') return a.createdAt - b.createdAt;
       if (sort === 'priority') return a.priority - b.priority || b.lastActivityAt - a.lastActivityAt;
       if (sort === 'age') return a.lastActivityAt - b.lastActivityAt;
       return b.lastActivityAt - a.lastActivityAt;
@@ -90,7 +91,8 @@ export default function Ideas() {
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
           <option value="activity">Tri : activité récente</option>
           <option value="age">Tri : les plus anciennes d’abord</option>
-          <option value="created">Tri : date de création</option>
+          <option value="created">Tri : date de création (récentes d’abord)</option>
+          <option value="num">Tri : numéro (#1 d’abord)</option>
           <option value="priority">Tri : priorité</option>
         </select>
       </div></details>

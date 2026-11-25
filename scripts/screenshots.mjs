@@ -13,6 +13,7 @@ const PORT = 4190;
 const BASE = `http://localhost:${PORT}/`;
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
+const DRAGDIR = process.env.DRAG || '';
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const profile = mkdtempSync(join(tmpdir(), 'cil-shots-'));
@@ -112,6 +113,17 @@ try {
       if (click) { await page.click(click).catch(() => {}); await new Promise((r) => setTimeout(r, 400)); }
       await new Promise((r) => setTimeout(r, 1200));
       cur = `${device} ${name}`;
+      if (process.env.DRAG && name === '05e-tiroir-variantes') {
+        const cards = await page.$$('.idea-card .ic-main');
+        const b1 = await cards[0].boundingBox(), b2 = await cards[1].boundingBox();
+        const x = b2.x + b2.width / 2, y = b2.y + 30;
+        await page.mouse.move(x, y); await page.mouse.down(); await new Promise((r) => setTimeout(r, 1300));
+        for (let k = 1; k <= 10; k++) { await page.mouse.move(x + (b1.x - b2.x) * k / 10 + 10, y + (b1.y + 30 - y) * k / 10); await new Promise((r) => setTimeout(r, 30)); }
+        await new Promise((r) => setTimeout(r, 300));
+        await page.screenshot({ path: DRAGDIR + '/' + device + '-en-cours.png' });
+        await page.mouse.up(); await new Promise((r) => setTimeout(r, 900));
+        await page.screenshot({ path: DRAGDIR + '/' + device + '-apres.png' });
+      }
       if (CHECK) {
         const o = await page.evaluate(() => { const w = innerWidth; const bad = [...document.querySelectorAll('body *')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right > w + 2 && getComputedStyle(el).position !== 'fixed'; }).slice(0, 3).map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} (${Math.round(el.getBoundingClientRect().right)}px)`); return { sw: document.documentElement.scrollWidth, w, bad }; });
         if (o.sw > o.w + 1 || o.bad.length) issues.push(`[${cur}] débordement : page ${o.sw}px / écran ${o.w}px · ${o.bad.join(', ')}`);

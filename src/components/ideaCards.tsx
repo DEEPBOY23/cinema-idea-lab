@@ -20,10 +20,10 @@ const COLORS: Record<string, string> = {
 interface Ghost { title: string; x: number; y: number; over: string | null }
 interface BoardCtl { menu: (i: Idea) => void; drop: (i: Idea, targetId: string) => void; ghost: (g: Ghost | null) => void; lift: (l: Lift | null) => void }
 type Lift = { id: string; mode: 'menu' | 'drag' };
-// Paliers de l'appui long : 0,5 s = menu (standard iOS/Android), 1 s = déplacer.
+// Paliers de l'appui long : 0,5 s = menu (standard iOS/Android), 1,1 s = déplacer.
 // Assez écartés pour être distincts au doigt, assez courts pour rester fluides.
 const MENU_MS = 500;
-const DRAG_MS = 1000;
+const DRAG_MS = 1100;
 
 // Pendant un glisser, on bloque le défilement de la page (iOS).
 const dragState = { active: false };
@@ -38,6 +38,24 @@ function usePressDrag(idea: Idea, ctl: BoardCtl) {
     if (e.button) return;
     fired.current = false;
     const sx = e.clientX, sy = e.clientY;
+    // La vraie carte suit le doigt (pas une étiquette fantôme).
+    const card = (e.currentTarget as HTMLElement).closest('.ic-variant, .idea-card') as HTMLElement | null;
+    const host = card?.classList.contains('ic-variant') ? card.closest('.idea-card') as HTMLElement | null : null;
+    const place = (dx: number, dy: number) => {
+      if (!card) return;
+      card.style.transition = 'transform .06s linear, box-shadow .2s';
+      card.style.transform = `translate(${dx}px, ${dy}px) scale(1.04) rotate(${Math.max(-3, Math.min(3, dx / 60))}deg)`;
+      card.style.zIndex = '60'; card.style.pointerEvents = 'none'; card.style.position = 'relative';
+      if (host) { host.style.overflow = 'visible'; host.style.zIndex = '59'; }
+    };
+    const reset = () => { if (!card) return; card.style.cssText = card.style.cssText.replace(/(transition|transform|z-index|pointer-events|position|opacity):[^;]*;?/g, ''); if (host) { host.style.overflow = ''; host.style.zIndex = ''; } };
+    const settle = (to: string, after: () => void) => {
+      if (!card) return after();
+      card.style.transition = 'transform .32s cubic-bezier(.2, 1.3, .4, 1), opacity .25s';
+      card.style.transform = to;
+      if (to.includes('scale(.4)')) card.style.opacity = '0';
+      window.setTimeout(() => { after(); reset(); }, 320);
+    };
     let dragging = false; let over: string | null = null;
     let canDrag = false;
     const t1 = window.setTimeout(() => { fired.current = true; dragState.active = true; ctl.lift({ id: idea.id, mode: 'menu' }); navigator.vibrate?.(10); }, MENU_MS);
@@ -47,12 +65,24 @@ function usePressDrag(idea: Idea, ctl: BoardCtl) {
       if (!canDrag) { if (d > 10) { cleanup(); fired.current = false; } return; }
       if (!dragging && d > 8) dragging = true;
       if (!dragging) return;
+      place(ev.clientX - sx, ev.clientY - sy);
       const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-drop-id]') as HTMLElement | null;
       over = el?.dataset.dropId && el.dataset.dropId !== idea.id ? el.dataset.dropId : null;
       ctl.ghost({ title: idea.title, x: ev.clientX, y: ev.clientY, over });
     };
-    const up = () => { const was = fired.current; cleanup(); if (!was) return; if (!dragging) ctl.menu(idea); else if (over) ctl.drop(idea, over); };
-    const cancel = () => { cleanup(); fired.current = false; };
+    const up = (ev: PointerEvent) => {
+      const was = fired.current; const target = over; cleanup(); if (!was) return;
+      if (!dragging) { reset(); ctl.menu(idea); return; }
+      const t = target ? document.querySelector(`[data-drop-id="${target}"]`)?.getBoundingClientRect() : null;
+      if (t && card) {
+        // la carte « rentre » dans l'idée visée
+        const b = card.getBoundingClientRect();
+        const dx = ev.clientX - sx + (t.left + t.width / 2 - (b.left + b.width / 2));
+        const dy = ev.clientY - sy + (t.top + t.height / 2 - (b.top + b.height / 2));
+        settle(`translate(${dx}px, ${dy}px) scale(.4)`, () => ctl.drop(idea, target!));
+      } else settle('translate(0px, 0px) scale(1)', () => {});
+    };
+    const cancel = () => { cleanup(); fired.current = false; settle('translate(0px, 0px) scale(1)', () => {}); };
     function cleanup() {
       clearTimeout(t1); clearTimeout(t2); dragState.active = false;
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
@@ -64,8 +94,24 @@ function usePressDrag(idea: Idea, ctl: BoardCtl) {
   return { fired, handlers: { onPointerDown, onContextMenu } };
 }
 
+/** Numéro de chaque idée : 1 = la plus ancienne (ordre de création, définitif). */
+let NUMS = new Map<string, number>();
+const numOf = (id: string) => NUMS.get(id);
+/** « aujourd’hui 13:20 », « hier 09:12 » ou « 23 nov. 18:05 ». */
+export function modifiedLabel(i: Idea) {
+  const t = Math.max(i.updatedAt ?? 0, i.lastActivityAt ?? 0, i.createdAt);
+  const d = new Date(t); const now = new Date();
+  const hm = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86_400_000);
+  if (diff === 0) return `aujourd’hui ${hm}`;
+  if (diff === 1) return `hier ${hm}`;
+  return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })} ${hm}`;
+}
+
 /** Bibliothèque : une carte par idée principale, ses variantes rangées dans un tiroir. */
 export function IdeaBoard({ list, all, formats, sources }: { list: Idea[]; all: Idea[]; formats: Format[]; sources: Source[] }) {
+  NUMS = useMemo(() => new Map([...all].filter((i) => !i.deletedAt).sort((a, b) => a.createdAt - b.createdAt).map((i, k) => [i.id, k + 1])), [all]);
   const prog = useMemo(() => new Map(all.map((i) => [i.id, ideaProgress(i, sources)])), [all, sources]);
   const auto = useMemo(() => variantFamilies(all), [all]);
   const fams = useMemo(() => groupFamilies(list, auto, (i) => prog.get(i.id)?.pct ?? 0), [list, auto, prog]);
@@ -78,13 +124,14 @@ export function IdeaBoard({ list, all, formats, sources }: { list: Idea[]; all: 
     if (!target) return;
     await updateIdea(i.id, { parentId: targetId });
     for (const c of all) if (c.parentId === i.id) await updateIdea(c.id, { parentId: targetId });
-    toast(`« ${i.title} » rangée comme variante de « ${target.title} ».`);
+    const short = (t: string) => (t.length > 34 ? t.slice(0, 32).trimEnd() + "…" : t);
+    toast(`Rangée en variante de « ${short(target.title)} »`);
   };
   const ctl: BoardCtl = { menu: setMenu, drop, ghost: setGhost, lift: setLift };
   return (
     <>
       <div className={`board ${lift?.mode === 'drag' ? 'dragging' : ''}`}>{fams.map((f) => <FamilyCard key={f.head.id} fam={f} prog={prog} formats={formats} ctl={ctl} lifted={lifted} lift={lift} over={ghost?.over ?? null} />)}</div>
-      {ghost && <div className="drag-ghost" style={{ left: ghost.x, top: ghost.y }}>{ghost.over ? '↳ ' : ''}{ghost.title}</div>}
+      {ghost?.over && <p className="drag-hint tiny drag">Relâche pour en faire une variante de « {all.find((x) => x.id === ghost.over)?.title} »</p>}
       {lift && !ghost && <p className={`drag-hint tiny ${lift.mode}`}>{lift.mode === 'menu' ? 'Relâche pour le menu · garde appuyé pour déplacer' : 'Glisse sur une autre idée pour en faire une variante'}</p>}
       {menu && <IdeaMenu idea={menu} all={all} onClose={() => setMenu(null)} />}
     </>
@@ -115,7 +162,9 @@ function FamilyCard({ fam, prog, formats, ctl, lifted, lift, over }: { fam: Fami
       <div className="ic-main" role="button" tabIndex={0} onClick={() => { if (lp.fired.current) { lp.fired.current = false; return; } go(`ideas/${i.id}`); }} {...lp.handlers}>
         <div className="ic-top">
           <span className="ic-icon"><Icon size={18} strokeWidth={1.8} /></span>
+          {numOf(i.id) && <span className="ic-num" title={`Idée n° ${numOf(i.id)}, créée le ${new Date(i.createdAt).toLocaleDateString('fr-FR')}`}>#{numOf(i.id)}</span>}
           <span className="ic-tag">{tag}</span>
+          <span className="ic-date" title="Dernière modification">modif. {modifiedLabel(i)}</span>
           {i.favorite && <Pin size={14} className="ic-pin" />}
         </div>
         <b className="ic-title">{i.title}</b>
@@ -146,7 +195,7 @@ function VariantRow({ idea, n, pct, ctl, lifted, lift }: { idea: Idea; n: number
   return (
     <div className={`ic-variant ${lifted === idea.id ? `lifted ${lift?.mode ?? ''}` : ''}`} role="button" tabIndex={0} style={{ '--c': colorOf(idea, pct) } as React.CSSProperties} onClick={() => { if (lp.fired.current) { lp.fired.current = false; return; } go(`ideas/${idea.id}`); }} {...lp.handlers}>
       <span className="ic-vnum">V{n}</span>
-      <span className="ic-vtitle">{idea.title}<small>{later ? 'gardée pour plus tard' : idea.importance ? IMPORTANCE[idea.importance] : fresh ? 'pas encore commencée' : 'commencée'} · {pct} %</small></span>
+      <span className="ic-vtitle">{numOf(idea.id) && <em className="ic-num">#{numOf(idea.id)}</em>}{idea.title}<small>modif. {modifiedLabel(idea)} · {later ? 'gardée pour plus tard' : idea.importance ? IMPORTANCE[idea.importance] : fresh ? 'pas encore commencée' : 'commencée'} · {pct} %</small></span>
     </div>
   );
 }

@@ -1018,3 +1018,13 @@ select { max-width: 100%; }
 .idea-card.lifted.menu, .ic-variant.lifted.menu { transform: scale(.975); opacity: 1; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 80%, transparent); }
 .idea-card.lifted.drag, .ic-variant.lifted.drag { transform: scale(1.03) translateY(-3px); opacity: .85; box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 0 2px var(--c); }
 .drag-hint.drag { border: 1px solid rgba(224, 138, 82, .6); }
+
+/* Notifications : pilule sur une ligne, rectangle arrondi quand le texte est long (jamais un rond) */
+.toasts { width: min(440px, calc(100vw - 32px)); justify-items: center; }
+.toast { border-radius: 18px; max-width: 100%; line-height: 1.35; }
+
+/* Numéro (ordre de création) et dernière modification */
+.ic-num { font-size: .72rem; font-weight: 700; font-style: normal; letter-spacing: .02em; padding: 2px 7px; border-radius: 8px; background: rgba(255,255,255,.08); color: rgba(248,249,250,.8); font-variant-numeric: tabular-nums; }
+.ic-vtitle .ic-num { align-self: flex-start; margin-bottom: 3px; }
+.ic-date { margin-left: auto; font-size: .7rem; color: rgba(248,249,250,.5); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ic-date + .ic-pin { margin-left: 6px; }
