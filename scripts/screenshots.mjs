@@ -117,7 +117,7 @@ try {
         const cards = await page.$$('.idea-card .ic-main');
         const b1 = await cards[0].boundingBox(), b2 = await cards[1].boundingBox();
         const x = b2.x + b2.width / 2, y = b2.y + 30;
-        await page.mouse.move(x, y); await page.mouse.down(); await new Promise((r) => setTimeout(r, 1300));
+        await page.mouse.move(x, y); await page.mouse.down(); await new Promise((r) => setTimeout(r, 750)); await page.screenshot({ path: DRAGDIR + '/' + device + '-appui.png' }); await new Promise((r) => setTimeout(r, 550));
         for (let k = 1; k <= 10; k++) { await page.mouse.move(x + (b1.x - b2.x) * k / 10 + 10, y + (b1.y + 30 - y) * k / 10); await new Promise((r) => setTimeout(r, 30)); }
         await new Promise((r) => setTimeout(r, 300));
         await page.screenshot({ path: DRAGDIR + '/' + device + '-en-cours.png' });

@@ -56,15 +56,26 @@ function usePressDrag(idea: Idea, ctl: BoardCtl) {
       if (to.includes('scale(.4)')) card.style.opacity = '0';
       window.setTimeout(() => { after(); reset(); }, 320);
     };
+    // Barre qui se remplit pendant l'appui : repère « menu » à 0,5 s, pleine à 1,1 s (déplacer).
+    const bar = card ? document.createElement('div') : null;
+    if (card && bar) {
+      bar.className = 'press-bar';
+      bar.style.setProperty('--menu-at', `${(MENU_MS / DRAG_MS) * 100}%`);
+      bar.style.setProperty('--press-ms', `${DRAG_MS}ms`);
+      bar.innerHTML = '<i></i><b></b>';
+      (e.currentTarget as HTMLElement).appendChild(bar); // sous la zone appuyée (carte ou variante)
+    }
+    const dropBar = () => bar?.remove();
     let dragging = false; let over: string | null = null;
     let canDrag = false;
-    const t1 = window.setTimeout(() => { fired.current = true; dragState.active = true; ctl.lift({ id: idea.id, mode: 'menu' }); navigator.vibrate?.(10); }, MENU_MS);
-    const t2 = window.setTimeout(() => { canDrag = true; ctl.lift({ id: idea.id, mode: 'drag' }); navigator.vibrate?.([12, 60, 12]); }, DRAG_MS);
+    const t1 = window.setTimeout(() => { fired.current = true; dragState.active = true; ctl.lift({ id: idea.id, mode: 'menu' }); bar?.classList.add('at-menu'); navigator.vibrate?.(10); }, MENU_MS);
+    const t2 = window.setTimeout(() => { canDrag = true; ctl.lift({ id: idea.id, mode: 'drag' }); bar?.classList.add('at-drag'); navigator.vibrate?.([12, 60, 12]); }, DRAG_MS);
     const move = (ev: PointerEvent) => {
       const d = Math.hypot(ev.clientX - sx, ev.clientY - sy);
       if (!canDrag) { if (d > 10) { cleanup(); fired.current = false; } return; }
       if (!dragging && d > 8) dragging = true;
       if (!dragging) return;
+      dropBar();
       place(ev.clientX - sx, ev.clientY - sy);
       const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-drop-id]') as HTMLElement | null;
       over = el?.dataset.dropId && el.dataset.dropId !== idea.id ? el.dataset.dropId : null;
@@ -84,6 +95,7 @@ function usePressDrag(idea: Idea, ctl: BoardCtl) {
     };
     const cancel = () => { cleanup(); fired.current = false; settle('translate(0px, 0px) scale(1)', () => {}); };
     function cleanup() {
+      dropBar();
       clearTimeout(t1); clearTimeout(t2); dragState.active = false;
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
       ctl.ghost(null); ctl.lift(null);

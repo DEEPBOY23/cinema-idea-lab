@@ -1028,3 +1028,20 @@ select { max-width: 100%; }
 .ic-vtitle .ic-num { align-self: flex-start; margin-bottom: 3px; }
 .ic-date { margin-left: auto; font-size: .7rem; color: rgba(248,249,250,.5); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ic-date + .ic-pin { margin-left: 6px; }
+
+/* Barre d'appui long */
+.idea-card, .ic-variant { position: relative; }
+.press-bar { position: absolute; left: 14px; right: 14px; bottom: 6px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; pointer-events: none; z-index: 3;
+  animation: press-show var(--press-ms) linear both; }
+.ic-variant .press-bar { left: 10px; right: 10px; bottom: 3px; height: 3px; }
+.press-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: color-mix(in srgb, var(--c) 90%, #fff);
+  animation: press-fill var(--press-ms) linear forwards; }
+.press-bar b { position: absolute; top: -1px; bottom: -1px; left: var(--menu-at); width: 2px; background: rgba(255,255,255,.55); border-radius: 2px; }
+.press-bar.at-menu b { background: #fff; box-shadow: 0 0 6px #fff; }
+.press-bar.at-drag i { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 90%, #fff), #e08a52); box-shadow: 0 0 10px #e08a52; }
+@keyframes press-fill { to { width: 100%; } }
+/* invisible sur un simple tap ou un défilement, apparaît après 0,15 s */
+@keyframes press-show { 0%, 12% { opacity: 0; } 20%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .press-bar i { animation-timing-function: steps(2, end); } }
+.ic-main { position: relative; }
+.ic-main .press-bar { bottom: 4px; }
