@@ -25,6 +25,8 @@ export default function Create() {
   const [err, setErr] = useState('');
   const abort = useRef<AbortController | null>(null);
   const kind = seed.trim() ? detectSeed(seed) : null;
+  const [editing, setEditing] = useState(false);
+  const folded = ideas.length > 0 && !editing && !busy;
 
   const setSeedSaved = (t: string) => { setSeed(t); save(DRAFT, t); };
   const setIdeasSaved = (v: GeneratedIdea[]) => { setIdeas(v); save(RESULTS, v); };
@@ -34,6 +36,7 @@ export default function Create() {
     abort.current = new AbortController();
     try {
       const r = await generateFromSeed(seed.trim(), memory, abort.current.signal);
+      setEditing(false);
       if (!r.length) setErr('L’assistant n’a rien proposé. Reformule ou ajoute un détail (film, plan, scène).');
       setIdeasSaved(r);
     } catch (e: any) { setErr(e?.name === 'AbortError' ? '' : (e?.message ?? String(e))); }
@@ -49,6 +52,15 @@ export default function Create() {
         </div>
       </div>
 
+      {folded ? (
+        <div className="card seed-folded">
+          <div style={{ flex: 1, minWidth: 0 }}><span className="tiny muted">Ton point de départ</span><p className="small seed-line">{seed}</p></div>
+          <div className="row wrap" style={{ flex: 'none' }}>
+            <button className="btn sm" onClick={() => setEditing(true)}>Modifier</button>
+            <button className="btn sm primary" onClick={() => { setIdeasSaved([]); setSeedSaved(''); setEditing(true); }}>Nouvelle idée</button>
+          </div>
+        </div>
+      ) : (
       <div className="card">
         <div className="row between" style={{ marginBottom: 6 }}>
           <span className="field-label" style={{ margin: 0 }}>Ton point de départ</span>
@@ -65,6 +77,7 @@ export default function Create() {
         </div>
         {err && <p className="small tag-hypothesis" style={{ marginTop: 8 }}>{err}</p>}
       </div>
+      )}
 
       {ideas.length > 0 && <h2>{ideas.length} idée{ideas.length > 1 ? 's' : ''} proposée{ideas.length > 1 ? 's' : ''} · du plus rapide au plus long</h2>}
       {[...ideas].map((g, i) => ({ g, i })).sort((a, b) => (a.g.estimate?.totalHours ?? 1e9) - (b.g.estimate?.totalHours ?? 1e9)).map(({ g, i }) => (

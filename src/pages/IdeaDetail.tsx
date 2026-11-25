@@ -102,16 +102,11 @@ export default function IdeaDetail({ id }: { id: string }) {
         <label className="row small muted"><input type="checkbox" checked={idea.paused} onChange={(e) => up({ paused: e.target.checked })} /> En pause</label>
       </div>
 
-      <div className="stepper" role="group" aria-label="Statut">
-        {STATUSES.map((s) => (
-          <button key={s.id} className={idea.status === s.id ? 'cur' : statusRank(s.id) < statusRank(idea.status) ? 'past' : ''} onClick={() => setStatus(idea, s.id)}>{s.label}</button>
-        ))}
-      </div>
-      <p className="muted tiny">Étapes flexibles : tu peux sauter une étape ou revenir en arrière, chaque transition est historisée.</p>
-
       <EstimateBar idea={idea} fmt={fmt} formats={formats} ctx={ctx} />
-      <FinalizeCard idea={idea} ctx={ctx} target={target} />
+      {ideaStage(idea) !== 'cloud' && <FinalizeCard idea={idea} ctx={ctx} target={target} />}
 
+      <Guide idea={idea} steps={[
+        { title: 'L’idée', hint: 'Ton observation, le format et l’œuvre. L’IA propose des formats.', body: <>
       <Section title={`Formats proposés${idea.suggestions?.formats.length ? ` (${idea.suggestions.formats.length})` : ''}`} open={!idea.formatId || !!idea.suggestions}>
         <FormatSuggestionsPanel idea={idea} />
       </Section>
@@ -142,30 +137,8 @@ export default function IdeaDetail({ id }: { id: string }) {
         )}
       </Section>
 
-      <Section title={`Angles envisagés (${idea.angles.length})`} open={idea.angles.length > 0} right={<AiBtn label="✦ Proposer 3 angles" run={async () => { const r = await proposeAngles(idea, ctx); toast(`${r.count} angles ajoutés.`); }} />}>
-        <AnglesEditor idea={idea} ctx={ctx} />
-      </Section>
-
-      <Section title="Niveau de recherche documentaire" open={!!idea.research} right={<AiBtn label="✦ Remplir et estimer" run={async () => { const t = await aiEstimate(idea, ctx); toast(`Estimation de l’assistant : ≈ ${t} h.`); }} />}>
-        <ResearchPanel idea={idea} docLoad={fmt?.docLoad} />
-      </Section>
-
-      <Section title={`Structure narrative${idea.structure.length ? ` · ${totalSec} s` : ''}`} open={idea.structure.length > 0}>
-        <PostStructureAI idea={idea} memory={memory} fmt={fmt} setBeats={setBeats} />
-        <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} ctx={ctx} />
-      </Section>
-
-      <Section title={`Script${idea.scriptReviewed ? ' · ✓ finalisé' : idea.scriptAI && !idea.scriptReviewed ? ' · version IA à relire' : ''}`} open={!!(idea.script || idea.scriptAI)}>
-        <ScriptTabs idea={idea} ctx={ctx} target={target} wpm={settings.wpm} />
-        <details><summary className="small muted">Versions antérieures de ta version</summary>
-          <VersionsPanel entityId={id} field="script" current={idea.script} onRestore={async (v) => { await snapshot('ideas', id, 'script', idea.script, 'restore'); await up({ script: v }); }} />
-        </details>
-      </Section>
-
-      <Section title="Références : œuvres vues ?" open={iWorks.some((w) => w.seen !== 'seen')}>
-        <ReferenceCheck idea={idea} iWorks={iWorks} allWorks={works} ctx={ctx} />
-      </Section>
-
+        </> },
+        { title: 'Documentation', hint: 'Trouve et range tes sources, estime la recherche nécessaire.', body: <>
       <Section title={`📁 Articles de cette idée (${iSources.length})`} open right={<button className="btn sm" onClick={() => setLinkOpen(true)}>Lier existants</button>}>
         {iSources.length > 0 && <div style={{ marginBottom: 8 }}><ReadProgress sources={iSources} /></div>}
         {iSources.length ? (
@@ -187,6 +160,50 @@ export default function IdeaDetail({ id }: { id: string }) {
         )}
       </Section>
 
+      <Section title="Niveau de recherche documentaire" open={!!idea.research} right={<AiBtn label="✦ Remplir et estimer" run={async () => { const t = await aiEstimate(idea, ctx); toast(`Estimation de l’assistant : ≈ ${t} h.`); }} />}>
+        <ResearchPanel idea={idea} docLoad={fmt?.docLoad} />
+      </Section>
+
+      <Section title="Références : œuvres vues ?" open={iWorks.some((w) => w.seen !== 'seen')}>
+        <ReferenceCheck idea={idea} iWorks={iWorks} allWorks={works} ctx={ctx} />
+      </Section>
+
+        </> },
+        { title: 'Angle', hint: 'Choisis un angle, ou combines-en plusieurs. L’IA en propose.', body: <>
+      <Section title={`Angles envisagés (${idea.angles.length})`} open={idea.angles.length > 0} right={<AiBtn label="✦ Proposer 3 angles" run={async () => { const r = await proposeAngles(idea, ctx); toast(`${r.count} angles ajoutés.`); }} />}>
+        <AnglesEditor idea={idea} ctx={ctx} />
+      </Section>
+
+        </> },
+        { title: 'Structure', hint: 'Hook, intro, angles, contradiction, conclusion : l’IA complète.', body: <>
+      <Section title={`Structure narrative${idea.structure.length ? ` · ${totalSec} s` : ''}`} open={idea.structure.length > 0}>
+        <PostStructureAI idea={idea} memory={memory} fmt={fmt} setBeats={setBeats} />
+        <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} ctx={ctx} />
+      </Section>
+
+        </> },
+        { title: 'Script', hint: 'L’IA prépare un script, tu le révises avec tes mots.', body: <>
+      <Section title={`Script${idea.scriptReviewed ? ' · ✓ finalisé' : idea.scriptAI && !idea.scriptReviewed ? ' · version IA à relire' : ''}`} open={!!(idea.script || idea.scriptAI)}>
+        <ScriptTabs idea={idea} ctx={ctx} target={target} wpm={settings.wpm} />
+        <details><summary className="small muted">Versions antérieures de ta version</summary>
+          <VersionsPanel entityId={id} field="script" current={idea.script} onRestore={async (v) => { await snapshot('ideas', id, 'script', idea.script, 'restore'); await up({ script: v }); }} />
+        </details>
+      </Section>
+
+        </> },
+        { title: 'Finaliser', hint: 'Fiche récap, puis à filmer.', body: <FinalizeCard idea={idea} ctx={ctx} target={target} inGuide /> },
+      ]} />
+
+      <h2 style={{ marginTop: 28 }}>Plus d’infos</h2>
+      <details className="section" style={{ marginBottom: 12 }}><summary><span>Changer le statut à la main</span></summary><div className="section-body">
+      <div className="stepper" role="group" aria-label="Statut">
+        {STATUSES.map((s) => (
+          <button key={s.id} className={idea.status === s.id ? 'cur' : statusRank(s.id) < statusRank(idea.status) ? 'past' : ''} onClick={() => setStatus(idea, s.id)}>{s.label}</button>
+        ))}
+      </div>
+      <p className="muted tiny">Étapes flexibles : tu peux sauter une étape ou revenir en arrière, chaque transition est historisée.</p>
+
+      </div></details>
       <Section title="Parcours et dates" open={false}>
         <Timeline idea={idea} events={events} />
         <h3 style={{ marginTop: 14 }}>Durées (calendaires)</h3>
@@ -290,7 +307,8 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
   const [local, setLocal] = useState(beats);
   useEffect(() => setLocal(beats), [JSON.stringify(beats)]);
   const commit = (b: Beat[]) => { setLocal(b); setBeats(b); };
-  const edit = (i: number, c: Partial<Beat>) => setLocal(local.map((x, j) => (j === i ? { ...x, ...c } : x)));
+  const edit = (i: number, c: Partial<Beat>) => setLocal(local.map((x, j) => (j === i ? { ...x, ...c, validatedAt: undefined } : x)));
+  const stamp = (t: number) => new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(' ', ' à ');
   const move = (i: number, d: number) => { const b = [...local]; const [x] = b.splice(i, 1); b.splice(i + d, 0, x); commit(b); };
   return (
     <div>
@@ -306,10 +324,11 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
           ))}
         </div>
       )}
+      {local.length > 0 && <p className="tiny muted" style={{ margin: '0 0 4px' }}>Pour chaque temps fort : son nom, sa durée en secondes, puis ce qu’on y dit ou montre.</p>}
       {local.map((b, i) => (
-        <div key={b.id} className={`beat ${b.weak ? 'weak' : ''}`}>
+        <div key={b.id} className={`beat ${b.weak ? 'weak' : ''} ${b.validatedAt ? 'validated' : ''}`}>
           <input value={b.label} onChange={(e) => edit(i, { label: e.target.value })} onBlur={() => commit(local)} />
-          <input type="number" min={0} value={b.seconds} onChange={(e) => edit(i, { seconds: Number(e.target.value) })} onBlur={() => commit(local)} title="secondes" />
+          <label className="sec-input" title="Durée de ce temps fort, en secondes"><input type="number" min={0} value={b.seconds} onChange={(e) => edit(i, { seconds: Number(e.target.value) })} onBlur={() => commit(local)} aria-label="Durée en secondes" /><span>s</span></label>
           <div className="row">
             <AiBtn icon label="✦" title="Retravailler ce temps fort avec l’IA" run={async () => { const t = await reworkText(`le temps fort « ${b.label} » (${b.seconds} s)`, b.content, ctx, 'Une intention et ce qu’on montre, en 1 à 3 phrases.'); commit(local.map((x, j) => (j === i ? { ...x, content: t, weak: false } : x))); }} />
             <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">↑</button>
@@ -318,10 +337,16 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
             <button className="icon-btn" onClick={() => commit(local.filter((_, j) => j !== i))} aria-label="Supprimer">✕</button>
           </div>
           <textarea rows={2} value={b.content} placeholder="Intention / contenu de ce temps fort" onChange={(e) => edit(i, { content: e.target.value })} onBlur={() => commit(local)} />
+          <div className="beat-validate">
+            {b.validatedAt
+              ? <><span className="tiny">✓ Validé le {stamp(b.validatedAt)}</span><button className="link-btn tiny" onClick={() => commit(local.map((x, j) => (j === i ? { ...x, validatedAt: undefined } : x)))}>annuler</button></>
+              : <button className="btn sm" disabled={!b.content.trim()} onClick={() => commit(local.map((x, j) => (j === i ? { ...x, validatedAt: Date.now(), weak: false } : x)))}>✓ Valider ce temps fort</button>}
+          </div>
         </div>
       ))}
       <div className="row wrap" style={{ marginTop: 8 }}>
         <button className="btn sm" onClick={() => commit([...local, { id: uid(), label: 'Nouveau temps fort', seconds: 8, content: '' }])}>+ Temps fort</button>
+        {local.length > 0 && <span className="small muted">{local.filter((b) => b.validatedAt).length}/{local.length} validés · </span>}
         <span className="small muted">Total {total} s{target ? ` · cible ≈ ${target} s` : ''}{fmt ? ` (format ${fmt.minSec}–${fmt.maxSec} s)` : ''}</span>
         <span className="spacer" />
         {local.length > 0 && statusRank(idea.status) < statusRank('structure') && (
@@ -581,13 +606,13 @@ function ScriptTabs({ idea, ctx, target, wpm }: { idea: Idea; ctx: any; target?:
 }
 
 /** Après les étapes : proposer de finaliser (fiche récap + script), puis suivre 🔵 à filmer → 🟢 filmée. */
-function FinalizeCard({ idea, ctx, target }: { idea: Idea; ctx: any; target?: number }) {
+function FinalizeCard({ idea, ctx, target, inGuide }: { idea: Idea; ctx: any; target?: number; inGuide?: boolean }) {
   const provider = useAIProvider();
   const [busy, setBusy] = useState(false);
   const stage = ideaStage(idea);
   const ready = idea.structure.some((b) => b.content.trim()) || !!idea.script.trim();
   if (stage === 'cloud') {
-    if (!ready && statusRank(idea.status) < statusRank('structure')) return null;
+    if (!inGuide && !ready && statusRank(idea.status) < statusRank('structure')) return null;
     const run = async () => {
       setBusy(true);
       try { if (provider !== 'none' && !idea.scriptAI && !idea.script.trim()) await draftScriptAI(idea, ctx, target); await finalizeIdea(idea); go(`ideas/${idea.id}/recap`); }
@@ -612,6 +637,50 @@ function FinalizeCard({ idea, ctx, target }: { idea: Idea; ctx: any; target?: nu
         <a className="btn sm primary" href={`#/ideas/${idea.id}/recap`}>Fiche récap</a>
         <button className="btn sm ghost" onClick={() => unfinalizeIdea(idea)}>Remettre dans les nuages</button>
       </div>
+    </div>
+  );
+}
+
+/** Guide de création : 6 étapes numérotées. Valider une étape ouvre la suivante. */
+const GUIDE_STATUS: (Idea['status'] | null)[] = ['documentation', null, 'angle', 'structure', 'script', null];
+export function guideCurrent(idea: Idea): number {
+  if (idea.finalizedAt) return 7;
+  if (idea.guideStep) return idea.guideStep;
+  const r = statusRank(idea.status);
+  return r <= 0 ? 1 : r === 1 ? 2 : r === 2 ? 4 : r === 3 ? 5 : 6;
+}
+function Guide({ idea, steps }: { idea: Idea; steps: { title: string; hint: string; body: React.ReactNode }[] }) {
+  const cur = guideCurrent(idea);
+  const [open, setOpen] = useState<number | null>(null);
+  const shown = open ?? Math.min(cur, steps.length);
+  const validate = async (k: number) => {
+    const st = GUIDE_STATUS[k - 1];
+    if (st && statusRank(idea.status) < statusRank(st)) await setStatus(idea, st);
+    if (k === 3 && !idea.angle.trim()) { const ch = idea.angles.filter((a) => a.chosen).map((a) => a.text.split('\n')[0]).join(' + '); if (ch) await updateIdea(idea.id, { angle: ch }); }
+    if (k === 5 && idea.script.trim()) await updateIdea(idea.id, { scriptReviewed: true });
+    await updateIdea(idea.id, { guideStep: Math.max(cur, k + 1) });
+    setOpen(k + 1);
+    setTimeout(() => document.getElementById(`guide-${k + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
+  return (
+    <div className="guide">
+      <div className="guide-progress">{steps.map((st, i) => { const k = i + 1; return <button key={k} className={`gp ${k < cur ? 'done' : k === cur ? 'cur' : ''}`} onClick={() => { setOpen(k); document.getElementById(`guide-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}><i>{k < cur ? '✓' : k}</i><span>{st.title}</span></button>; })}</div>
+      {steps.map((st, i) => {
+        const k = i + 1, isOpen = shown === k, state = k < cur ? 'done' : k === cur ? 'cur' : 'next';
+        return (
+          <div key={k} id={`guide-${k}`} className={`guide-step ${state} ${isOpen ? 'open' : ''}`}>
+            <button className="guide-head" onClick={() => setOpen(isOpen ? -1 : k)}>
+              <i className="guide-num">{state === 'done' ? '✓' : k}</i>
+              <span className="guide-title"><b>{st.title}</b><span className="tiny muted">{state === 'done' ? 'Fait · touche pour revoir' : state === 'cur' ? st.hint : 'À venir'}</span></span>
+              <span className="guide-state">{state === 'done' ? 'Fait' : state === 'cur' ? 'En cours' : ''}</span>
+            </button>
+            {isOpen && <div className="guide-body">
+              {st.body}
+              {k < steps.length && <div className="guide-foot"><button className="btn primary" onClick={() => validate(k)}>{state === 'done' ? 'Revalider' : 'Valider'} et passer à : {steps[k].title} →</button></div>}
+            </div>}
+          </div>
+        );
+      })}
     </div>
   );
 }

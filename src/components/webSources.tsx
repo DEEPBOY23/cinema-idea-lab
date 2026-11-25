@@ -18,6 +18,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
   const [msg, setMsg] = useState('');
   const abort = useRef<AbortController | null>(null);
   const [next, setNext] = useState(false);
+  const [wideRes, setWideRes] = useState(false);
 
   const [refused, setRefused] = useState(groundingRefused());
   if (getProvider() === 'none') {
@@ -27,7 +28,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
     return <LeadsFinder subject={subject} idea={idea} onRetry={groundingAvailable() ? () => { try { localStorage.removeItem('cil.grounding'); } catch { /* */ } setRefused(false); run(); } : undefined} />;
   }
 
-  async function run() {
+  async function run(wide = false) {
     const iw = works.filter((w) => idea?.workIds.includes(w.id)).map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}${w.director ? `, ${w.director}` : ''}`);
     const fmt = formats.find((f) => f.id === idea?.formatId);
     const prompt = [
@@ -35,10 +36,12 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
       `Sujet : ${subject || idea?.title || ''}`,
       iw.length ? `Œuvre(s) : ${iw.join(' ; ')}` : '',
       idea?.observation ? `Mon observation : ${idea.observation}` : '',
-      `Cherche sur le web des sources RÉELLES, gratuites et fiables : interviews du réalisateur ou du directeur de la photographie, articles de fond sur la cinématographie (American Cinematographer, IndieWire, No Film School, revues de cinéma…), making-of, analyses de mise en scène, masterclasses.`,
+      wide
+        ? `ÉLARGIS la recherche : thèmes voisins, autres films ou séries qui utilisent le même procédé, théorie du cinéma, publicités et clips à la cinématographie remarquable (storytelling, direction de la photographie), vidéos d'analyse. Commence chaque note par « Pertinence : forte », « moyenne » ou « faible » par rapport au sujet.`
+        : `Cherche sur le web des sources RÉELLES, gratuites et fiables : interviews du réalisateur ou du directeur de la photographie, articles de fond sur la cinématographie (American Cinematographer, IndieWire, No Film School, revues de cinéma…), making-of, analyses de mise en scène, masterclasses. Inclus aussi les publicités dont la cinématographie est remarquable quand c'est pertinent (shots.net, LBBOnline, Campaign, making-of de pubs).`,
       `Pour chaque source, une ligne : « - Titre — Média — URL complète — ce qu'elle apporte ». Uniquement des pages trouvées par la recherche ; n'invente aucune URL, aucune citation. Signale si l'accès semble payant ou sur inscription. Réponds en français.`,
     ].filter(Boolean).join('\n');
-    setBusy(true); setMsg(''); setRes(null);
+    setBusy(true); setMsg(''); setRes(null); setWideRes(wide);
     abort.current = new AbortController();
     try {
       const r = await searchWebSources(prompt, abort.current.signal);
@@ -74,7 +77,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
       <div className="row between wrap">
         <div><h3 style={{ margin: 0 }}>Vraies sources sur le web</h3><p className="tiny muted" style={{ margin: '4px 0 0' }}>Gemini cherche sur Google. Seuls les liens trouvés par la recherche sont gardés.</p></div>
         {busy ? <button className="btn sm" onClick={() => abort.current?.abort()}>Annuler…</button>
-          : <button className="btn sm primary" disabled={!(subject || idea)} onClick={run}>Chercher des sources</button>}
+          : <span className="row wrap"><button className="btn sm primary" disabled={!(subject || idea)} onClick={() => run()}>Chercher des sources</button><button className="btn sm" disabled={!(subject || idea)} onClick={() => run(true)} title="Thèmes voisins, autres œuvres, pubs : plus de résultats, parfois moins ciblés">Élargir la recherche</button></span>}
       </div>
       {msg && <p className="small" style={{ marginTop: 8 }}>{msg}</p>}
       {next && !res && !busy && (
@@ -82,6 +85,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
           <b>Et maintenant ?</b>
           <div className="row wrap" style={{ marginTop: 8 }}>
             <button className="btn sm" onClick={() => { setNext(false); setMsg(''); run(); }}>Chercher d’autres sources</button>
+            <button className="btn sm" onClick={() => { setNext(false); setMsg(''); run(true); }}>Élargir la recherche</button>
             {idea && <a className="btn sm" href={`#/ideas/${idea.id}`}>Revenir à l’idée</a>}
             <a className="btn sm" href="#/creer">Créer d’autres idées</a>
             <a className="btn sm ghost" href="#/">Accueil</a>
@@ -90,6 +94,7 @@ export function WebSourceFinder({ subject, idea }: { subject: string; idea?: Ide
       )}
       {res && (
         <div style={{ marginTop: 10 }}>
+          {wideRes && <p className="note small" style={{ margin: '0 0 8px' }}>Recherche élargie : plus de résultats, mais certains sont moins ciblés. Regarde la mention « Pertinence » de chacun.</p>}
           {res.queries.length > 0 && <p className="tiny muted">Recherches effectuées : {res.queries.join(' · ')}</p>}
           {res.sources.map((s) => {
             const dup = existing.some((e) => e.url === s.url);

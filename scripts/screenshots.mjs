@@ -20,6 +20,11 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: true,
 
 try {
   const page = await browser.newPage();
+  // CHECK=1 : contrôle de stabilité (erreurs JS, débordements), sans capture
+  const CHECK = !!process.env.CHECK; let cur = '';
+  const issues = [];
+  page.on('pageerror', (e) => issues.push(`[${cur}] ERREUR JS : ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) issues.push(`[${cur}] console : ${m.text().slice(0, 200)}`); });
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await page.setViewport({ width: 1280, height: 800 });
   await page.goto(BASE, { waitUntil: 'networkidle0' });
@@ -51,6 +56,7 @@ try {
           { id: 'b4', label: 'Contradiction', seconds: 7, content: 'On peut aussi y voir une simple charte de costumes.' },
           { id: 'b5', label: 'Conclusion / complément', seconds: 6, content: 'La couleur joue le rôle d’un personnage invisible.' }],
         scriptAI: 'Regarde la chemise de Theodore.\nCorail. Comme les murs, comme la lumière.\nDans Her, cette couleur est partout… sauf quand il est seul.\nHypothèse : la couleur remplace le contrechamp. Samantha n’a pas de corps, alors le film lui donne une teinte.\nOn peut y voir une simple charte de costumes — mais regarde quand elle se tait.\nLa couleur devient un personnage.' },
+      { ...base, id: 'sib3', title: 'Le corail, couleur de la présence — Filmer une voix', priority: 2, paused: false, importance: 'tourner', hook: 'Il parle à quelqu’un. Mais où est-elle ?', angle: 'Pas de contrechamp', createdAt: now - 5000 },
       { ...base, id: 'sib2', title: 'Le corail, couleur de la présence — Les scènes seules sont désaturées', priority: 3, paused: true },
     ]);
   });
@@ -63,6 +69,7 @@ try {
     ['27-fiche-a-filmer', '#/ideas/sib1'],
     ['05c-idees-a-filmer', '#/ideas', '.stage-tabs button:nth-child(2)'],
     ['05d-idees-nuages', '#/ideas', '.stage-tabs button:nth-child(1)'],
+    ['05e-tiroir-variantes', '#/ideas', '.ic-drawer-btn'],
     ['01-accueil', '#/'],
     ['02-bac-a-idees', '#/bac'],
     ['03-formats', '#/formats'],
@@ -103,10 +110,17 @@ try {
       if (FULL) await page.addStyleTag({ content: '.tabbar{position:static!important;margin:16px 12px} .main{padding-bottom:16px!important} .topbar-wrap{position:static!important}' });
       if (click) { await page.click(click); await new Promise((r) => setTimeout(r, 400)); }
       await new Promise((r) => setTimeout(r, 1200));
+      cur = `${device} ${name}`;
+      if (CHECK) {
+        const o = await page.evaluate(() => { const w = innerWidth; const bad = [...document.querySelectorAll('body *')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right > w + 2 && getComputedStyle(el).position !== 'fixed'; }).slice(0, 3).map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} (${Math.round(el.getBoundingClientRect().right)}px)`); return { sw: document.documentElement.scrollWidth, w, bad }; });
+        if (o.sw > o.w + 1 || o.bad.length) issues.push(`[${cur}] débordement : page ${o.sw}px / écran ${o.w}px · ${o.bad.join(', ')}`);
+        continue;
+      }
       await page.screenshot({ path: join(dir, `${name}.png`), fullPage: FULL });
       console.log(device, name);
     }
   }
+  if (CHECK) { console.log('--- CONTRÔLE ---'); console.log(issues.length ? [...new Set(issues)].join('\n') : 'Aucun problème détecté.'); }
 } finally {
   await browser.close();
   server.kill();

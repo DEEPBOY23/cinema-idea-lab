@@ -33,8 +33,26 @@ function CloudInteraction() {
   return <Modal open onClose={() => ui.onCancel?.()} title={ui.title}><LoginDialog ui={ui} /></Modal>;
 }
 
+/** App installée sur iPhone : les liens externes s'ouvrent dans Safari (vraie page séparée), pas dans une feuille par-dessus l'app. */
+function useExternalLinksInSafari() {
+  useEffect(() => {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const standalone = (navigator as any).standalone === true || matchMedia('(display-mode: standalone)').matches;
+    if (!ios || !standalone) return;
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement)?.closest?.('a[target="_blank"]') as HTMLAnchorElement | null;
+      if (!a || !/^https?:/.test(a.href) || a.hasAttribute('download')) return;
+      e.preventDefault();
+      location.href = 'x-safari-' + a.href;
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
+}
+
 export default function App() {
   const { path, query } = useRoute();
+  useExternalLinksInSafari();
   const [more, setMore] = useState(false);
   const [palette, setPalette] = useState(false);
   const [capture, setCapture] = useState(false);

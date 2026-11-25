@@ -36,7 +36,9 @@ export const COMPAT_LABELS: Record<CompatRating, string> = {
   insufficient: 'Informations insuffisantes',
 };
 
-export interface Beat { id: string; label: string; content: string; seconds: number; weak?: boolean }
+export type Importance = 'tourner' | 'finir' | 'plus-tard';
+export const IMPORTANCE: Record<Importance, string> = { tourner: 'À tourner', finir: 'À finir de modifier', 'plus-tard': 'Garder pour plus tard' };
+export interface Beat { id: string; label: string; content: string; seconds: number; weak?: boolean; validatedAt?: number }
 export interface AngleOption { id: string; text: string; chosen: boolean; origin: 'moi' | 'claude' | 'ia' }
 export interface Comment { id: string; at: number; text: string }
 
@@ -65,6 +67,9 @@ export interface Idea {
   paused: boolean;
   scriptAI?: string; // script préparé par l'IA (maquette), jamais écrasé par ta version
   scriptReviewed?: boolean; // ta version est relue et finalisée
+  parentId?: string; // variante de cette idée principale
+  importance?: Importance;
+  guideStep?: number; // étape du guide de création (1 à 6)
   finalizedAt?: number; // idée finalisée : 🔵 à filmer
   filmedAt?: number; // filmée : 🟢
   plannedWeek?: string; // 'YYYY-Www'

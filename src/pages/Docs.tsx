@@ -181,10 +181,12 @@ function SourceDetail({ id }: { id: string }) {
         )}
       </Section>
 
-      <Section title="Liens">
-        <span className="field-label">Idées</span>
-        <div className="chips">{ideas.map((i) => <button key={i.id} className={`chip ${s.ideaIds.includes(i.id) ? 'on' : ''}`} onClick={() => up({ ideaIds: s.ideaIds.includes(i.id) ? s.ideaIds.filter((x) => x !== i.id) : [...s.ideaIds, i.id] })}>{i.title}</button>)}</div>
-        <span className="field-label" style={{ marginTop: 10 }}>Œuvres</span>
+      <Section title="Rattacher cette source">
+        <span className="field-label">À quelles idées sert cet article ?</span>
+        <p className="tiny muted" style={{ margin: '0 0 8px' }}>Coché = l’article apparaît dans la documentation de l’idée. Touche pour ajouter ou retirer.</p>
+        <div className="link-list">{[...ideas].sort((a, b) => Number(s.ideaIds.includes(b.id)) - Number(s.ideaIds.includes(a.id))).map((i) => { const on = s.ideaIds.includes(i.id); return (
+          <label key={i.id} className={`link-row ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => up({ ideaIds: on ? s.ideaIds.filter((x) => x !== i.id) : [...s.ideaIds, i.id] })} /><span>{i.title}</span></label>); })}</div>
+        <span className="field-label" style={{ marginTop: 14 }}>De quelles œuvres parle-t-il ?</span>
         <WorkPicker works={works} selected={s.workIds} onChange={(ids) => up({ workIds: ids })} />
       </Section>
 
@@ -383,7 +385,8 @@ function SearchHelper({ ideaId }: { ideaId?: string }) {
       <p className="small muted" style={{ margin: '4px 0' }}>Ou cherche toi-même :</p>
       <div className="row wrap">{searchLinks(q).map((l) => <a key={l.label} className={`btn sm ${online ? '' : 'ghost'}`} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}</div>
       {!online && <p className="small muted">Hors ligne : les liens s’ouvriront quand la connexion reviendra.</p>}
-      <h3 style={{ marginTop: 14 }}>Inspiration documentaire (prompt pour l’IA)</h3>
+      <details style={{ marginTop: 14 }}><summary className="small"><b>Pistes de documentation par l’IA</b> <span className="muted">· idées de scènes à revoir, références, personnes à écouter</span></summary>
+      <p className="tiny muted" style={{ margin: '6px 0' }}>Ce n’est pas une recherche de liens : l’IA te suggère quoi creuser pour ton sujet (scènes, références, interviews à chercher). « Demander à Gemini » répond ici ; les autres boutons servent seulement si tu préfères une autre IA.</p>
       <PromptBox mode="inspiration" ideaId={idea?.id} input={q} importLabel="Enregistrer et importer les liens"
         prompt={buildPrompt('inspiration', { idea, works, formats, sources, notes, settings }, '', { subject: q || idea?.title })}
         onImport={async (r) => {
@@ -392,6 +395,7 @@ function SearchHelper({ ideaId }: { ideaId?: string }) {
           for (const l of extractLinks(r)) { if (existing.has(l.url)) continue; await createSource({ url: l.url, title: (!l.title || /https?:\/\//.test(l.title) ? titleFromUrl(l.url) : l.title), ideaIds: idea ? [idea.id] : [], access: 'unverified' }); n++; }
           if (n) alert(`${n} lien(s) ajouté(s) aux sources avec le statut « accès non vérifié ». Ouvre-les pour les vérifier.`);
         }} />
+      </details>
     </div>
   );
 }

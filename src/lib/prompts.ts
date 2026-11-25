@@ -177,6 +177,7 @@ export function searchLinks(q: string) {
     { label: 'No Film School', url: `https://duckduckgo.com/?q=${e(q + ' site:nofilmschool.com')}` },
     { label: 'IndieWire (craft)', url: `https://duckduckgo.com/?q=${e(q + ' site:indiewire.com')}` },
     { label: 'Interviews DP (Wikipédia exclue)', url: `https://duckduckgo.com/?q=${e(q + ' director of photography interview -wikipedia')}` },
+    { label: 'Pubs (cinématographie)', url: `https://duckduckgo.com/?q=${e(q + ' commercial cinematography (site:shots.net OR site:lbbonline.com OR site:campaignlive.com)')}` },
     { label: 'Archive.org', url: `https://archive.org/search?query=${e(q)}` },
   ];
 }

@@ -22,7 +22,7 @@ export const BACKDROP_COLORS = [
 ];
 
 export interface BackdropTuning { distortion: number; swirl: number; speed: number; scale: number; grainMixer: number; offsetX: number; offsetY: number; rotation: number }
-export const DEFAULT_TUNING: BackdropTuning = { distortion: 0.45, swirl: 0.06, speed: 0.06, scale: 0.55, grainMixer: 0, offsetX: 0.04, offsetY: 0, rotation: 200 };
+export const DEFAULT_TUNING: BackdropTuning = { distortion: 0.38, swirl: 0.08, speed: 0.16, scale: 0.72, grainMixer: 0, offsetX: 0.04, offsetY: 0, rotation: 200 };
 
 function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
@@ -63,7 +63,7 @@ export function Backdrop({ tuning = DEFAULT_TUNING, colors = BACKDROP_COLORS }: 
           offsetX={tuning.offsetX}
           offsetY={tuning.offsetY}
           minPixelRatio={1}
-          maxPixelCount={small ? 420_000 : 1_400_000}
+          maxPixelCount={small ? 1_300_000 : 2_600_000}
           webGlContextAttributes={{ antialias: false, alpha: false, powerPreference: 'low-power' }}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         />

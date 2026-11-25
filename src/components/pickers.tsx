@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { ideaStage, setFilmed } from '../lib/stage';
 import type { Variant } from '../lib/create';
+import { updateIdea } from '../lib/actions';
+import { toast } from '../lib/toast';
+import { useRef as useRefP } from 'react';
+
+const GUIDE_NAMES = ['L’idée', 'Documentation', 'Angle', 'Structure', 'Script', 'Finaliser'];
+/** Étape du guide (même calcul que la fiche). */
+export function stepOf(i: Idea): number { if (i.finalizedAt) return 7; if (i.guideStep) return i.guideStep; const r = ['idea', 'documentation', 'angle', 'structure', 'script'].indexOf(i.status); return r <= 0 ? 1 : r === 1 ? 2 : r === 2 ? 4 : r === 3 ? 5 : 6; }
+/** Une idée jamais retouchée depuis sa création (moins d'une minute d'écart). */
+export const untouched = (i: Idea) => i.lastActivityAt - i.createdAt < 60_000 && !i.guideStep;
 import type { Idea, Work, Format, Settings } from '../types';
 import { statusLabel } from '../types';
 import { createWork } from '../lib/actions';
@@ -71,21 +80,27 @@ export function IdeaRow({ idea, works, formats, settings, variant }: { idea: Ide
   const ws = works.filter((w) => idea.workIds.includes(w.id));
   const { tone } = ageTone(idea, settings.thresholds);
   const stage = ideaStage(idea);
+  const step = stepOf(idea);
+  const press = useRefP<number | null>(null);
+  const longPressed = useRefP(false);
+  const startPress = () => { longPressed.current = false; press.current = window.setTimeout(async () => { longPressed.current = true; await updateIdea(idea.id, { favorite: !idea.favorite }); toast(idea.favorite ? 'Idée désépinglée.' : 'Idée épinglée en haut de la bibliothèque.'); }, 550); };
+  const endPress = () => { if (press.current) clearTimeout(press.current); press.current = null; };
   return (
-    <li className={`edge-${tone} stage-${stage}${idea.paused ? ' is-later' : ''}${variant ? ' has-family' : ''}`} style={variant ? ({ '--family': variant.color } as React.CSSProperties) : undefined} onClick={() => go(`ideas/${idea.id}`)}>
+    <li className={`edge-${tone} stage-${stage}${idea.paused ? ' is-later' : ''}${variant ? ' has-family' : ''}`} style={variant ? ({ '--family': variant.color } as React.CSSProperties) : undefined} onClick={() => { if (longPressed.current) { longPressed.current = false; return; } go(`ideas/${idea.id}`); }} onPointerDown={startPress} onPointerUp={endPress} onPointerLeave={endPress} onPointerCancel={endPress} onContextMenu={(e) => e.preventDefault()}>
       <div className="row between">
-        <span className="item-title">{idea.title}</span>
-        <span className="row" style={{ gap: 6, flex: 'none' }}>
+        <span className="item-title">{idea.favorite && <span title="Épinglée" style={{ marginRight: 6 }}>📌</span>}{idea.title}</span>
+        <span className="row card-chips">
           {stage === 'ready' && <span className="chip stage-chip-ready"><i className="sdot sdot-ready" />à filmer{idea.scriptReviewed ? ' · script finalisé' : ''}</span>}
           {stage === 'filmed' && <span className="chip stage-chip-filmed"><i className="sdot sdot-filmed" />filmée</span>}
           {stage === 'ready' && <label className="chip" onClick={(e) => e.stopPropagation()} title="Cocher quand c’est filmé"><input type="checkbox" checked={false} onChange={() => setFilmed(idea, true)} style={{ marginRight: 4 }} />filmée</label>}
+          {stage === 'cloud' && <span className="chip step-chip">{variant && untouched(idea) ? 'pas encore commencée' : `étape ${step}/6 · ${GUIDE_NAMES[step - 1]}`}</span>}
           {variant && <span className="chip family-chip" title="Idées issues de la même idée de départ"><i className="sdot" style={{ background: variant.color }} />variante {variant.n}/{variant.of}</span>}
           {idea.paused && <span className="chip later-chip"><i className="sdot sdot-later" />gardée pour plus tard</span>}
           {idea.priority === 1 && <span className="chip">priorité</span>}
         </span>
       </div>
       <div className="item-meta">
-        <span>{statusLabel(idea.status)}</span>
+        {stage !== 'cloud' && <span>{statusLabel(idea.status)}</span>}
         {fmt && <span>{fmt.name}</span>}
         {ws.length > 0 && <span>{ws.map((w) => w.title).join(', ')}</span>}
         {idea.plannedWeek && <span>planifiée {idea.plannedWeek.replace('-W', ' · S')}</span>}

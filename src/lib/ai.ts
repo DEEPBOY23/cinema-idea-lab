@@ -370,7 +370,7 @@ export interface ResearchLead { query: string; why: string; kind: string }
 /** L'IA propose des recherches ciblées (qui, quoi, quel type de source). Aucun lien inventé : ce sont des requêtes. */
 export async function researchLeads(prompt: string, signal?: AbortSignal): Promise<ResearchLead[]> {
   const { data } = await askAIJson<{ leads: ResearchLead[] }>(
-    `Tu aides un vidéaste cinéma à se documenter. Tu n'as PAS accès au web : ne donne aucune URL et n'invente aucun titre d'article. Propose 5 à 6 recherches précises à taper dans un moteur (noms propres, chef opérateur, termes techniques, en anglais si les sources sont surtout anglophones), chacune avec ce qu'elle doit permettre de trouver et le type de source visé (interview, making-of, article technique, analyse, masterclass). Tutoie. Réponds en JSON : {"leads":[{"query":"","why":"","kind":""}]}`,
+    `Tu aides un vidéaste cinéma à se documenter. Tu n'as PAS accès au web : ne donne aucune URL et n'invente aucun titre d'article. Propose 5 à 6 recherches précises à taper dans un moteur (noms propres, chef opérateur, termes techniques, en anglais si les sources sont surtout anglophones), chacune avec ce qu'elle doit permettre de trouver et le type de source visé (interview, making-of, article technique, analyse, masterclass, publicité à la cinématographie remarquable). Tutoie. Réponds en JSON : {"leads":[{"query":"","why":"","kind":""}]}`,
     prompt, signal);
   return (data.leads ?? []).filter((l) => l?.query).slice(0, 6);
 }

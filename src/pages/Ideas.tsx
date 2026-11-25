@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useIdeas, useWorks, useFormats, useSettings, go } from '../hooks';
+import { useIdeas, useWorks, useFormats, useSettings, useSources, go } from '../hooks';
+import { IdeaBoard } from '../components/ideaCards';
 import { STATUSES, type Status } from '../types';
 import { IdeaRow } from '../components/pickers';
 import { Empty } from '../components/ui';
@@ -15,6 +16,7 @@ export default function Ideas() {
   const works = useWorks();
   const formats = useFormats();
   const settings = useSettings();
+  const sources = useSources();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<Status | 'active' | 'all'>('active');
   const [fmt, setFmt] = useState('');
@@ -37,6 +39,7 @@ export default function Ideas() {
       return true;
     });
     l = [...l].sort((a, b) => {
+      if (!!a.favorite !== !!b.favorite) return a.favorite ? -1 : 1;
       if (sort === 'created') return b.createdAt - a.createdAt;
       if (sort === 'priority') return a.priority - b.priority || b.lastActivityAt - a.lastActivityAt;
       if (sort === 'age') return a.lastActivityAt - b.lastActivityAt;
@@ -61,9 +64,10 @@ export default function Ideas() {
       <div className="seg stage-tabs" style={{ marginBottom: 12 }}>
         {(Object.keys(STAGE_LABEL) as Stage[]).map((k) => <button key={k} className={stage === k ? 'on' : ''} onClick={() => pickStage(k)}><i className={`sdot sdot-${k}`} />{STAGE_LABEL[k]} ({stageCount[k]})</button>)}
       </div>
-      <p className="tiny muted" style={{ margin: '-4px 0 12px' }}>{stage === 'cloud' ? 'Idées en cours : développe-les puis « Finaliser l’idée » sur leur fiche.' : stage === 'ready' ? 'Finalisées, avec leur fiche récap. Coche « filmée » quand c’est tourné.' : 'Tournées, réalisées ou publiées.'}</p>
-      <div className="grid two" style={{ marginBottom: 12 }}>
-        <input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="tiny muted" style={{ margin: '-4px 0 12px' }}>{stage === 'cloud' ? 'Une carte par idée ; ses variantes sont dans le tiroir. Appui long sur une carte : importance, idée principale, épingler.' : stage === 'ready' ? 'Finalisées, avec leur fiche récap. Coche « filmée » quand c’est tourné.' : 'Tournées, réalisées ou publiées.'}</p>
+      <input placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+      <details className="filters"><summary>Filtres et tri{(fmt || work || diff || status !== 'active' || sort !== 'activity') ? ' · actifs' : ''}</summary>
+      <div className="grid two" style={{ margin: '8px 0 12px' }}>
         <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
           <option value="active">Idées actives</option>
           <option value="all">Toutes</option>
@@ -89,12 +93,13 @@ export default function Ideas() {
           <option value="created">Tri : date de création</option>
           <option value="priority">Tri : priorité</option>
         </select>
-      </div>
+      </div></details>
       {list.length ? (
-        <ul className="list">{list.map((i) => <IdeaRow key={i.id} idea={i} works={works} formats={formats} settings={settings} variant={families.get(i.id)} />)}</ul>
+        <IdeaBoard list={list} all={ideas} formats={formats} sources={sources} />
       ) : <Empty>Aucune idée ne correspond. Capture une observation depuis l’accueil ou crée une idée.</Empty>}
-      <p className="muted tiny" style={{ marginTop: 16 }}>
-        Pastilles : <span className="age age-fresh"><i />0–{settings.thresholds[0]} j</span> · <span className="age age-amber"><i />–{settings.thresholds[1]} j</span> · <span className="age age-terracotta"><i />–{settings.thresholds[2]} j</span> · <span className="age age-bordeaux"><i />au-delà</span> · <span className="age age-done"><i />réalisée</span> · <span className="age age-published"><i />publiée</span> (seuils modifiables dans Paramètres).
+      <p className="legend tiny muted" style={{ marginTop: 16 }}>
+        <span><i style={{ background: '#d38d5c' }} />À tourner</span><span><i style={{ background: '#8aa3b8' }} />À finir / à filmer</span><span><i style={{ background: '#a99cb8' }} />Plus tard</span>
+        <span><i style={{ background: '#7f9c9a' }} />À peine commencée</span><span><i style={{ background: '#c2b48a' }} />En partie</span><span><i style={{ background: '#93ab8e' }} />Bien avancée / filmée</span>
       </p>
     </div>
   );
