@@ -18,16 +18,16 @@ import { runSuggest, useMemory } from './assist';
 export const NAV = [
   { path: '', label: 'Accueil', Icon: Home, group: 'Créer' },
   { path: 'creer', label: 'Créer', Icon: Wand2, group: 'Créer' },
-  { path: 'bac', label: 'Bac à idées', Icon: Inbox, group: 'Créer' },
-  { path: 'atelier', label: 'Atelier éditorial', Icon: PenTool, group: 'Créer' },
+  { path: 'bac', label: 'Bac à idées', Icon: Inbox, group: 'Créer', hint: 'Vider ta tête, trier plus tard' },
+  { path: 'atelier', label: 'Atelier éditorial', Icon: PenTool, group: 'Créer', hint: 'Angles, structure, script' },
   { path: 'ideas', label: 'Bibliothèque', Icon: Lightbulb, group: 'Organiser' },
-  { path: 'articles', label: 'Articles', Icon: FolderOpen, group: 'Organiser' },
-  { path: 'docs', label: 'Documentation', Icon: BookOpen, group: 'Organiser' },
-  { path: 'formats', label: 'Formats', Icon: LayoutGrid, group: 'Organiser' },
-  { path: 'films', label: 'Filmothèque', Icon: Film, group: 'Organiser' },
-  { path: 'planning', label: 'Planning', Icon: CalendarDays, group: 'Suivre' },
-  { path: 'stats', label: 'Statistiques', Icon: BarChart3, group: 'Suivre' },
-  { path: 'ameliorations', label: 'Améliorations', Icon: MessageSquarePlus, group: 'Suivre' },
+  { path: 'articles', label: 'Articles', Icon: FolderOpen, group: 'Organiser', hint: 'Tes lectures et liens' },
+  { path: 'docs', label: 'Documentation', Icon: BookOpen, group: 'Organiser', hint: 'Notes et sources par idée' },
+  { path: 'formats', label: 'Formats', Icon: LayoutGrid, group: 'Organiser', hint: 'Tes types de vidéos' },
+  { path: 'films', label: 'Filmothèque', Icon: Film, group: 'Organiser', hint: 'Films et séries cités' },
+  { path: 'planning', label: 'Planning', Icon: CalendarDays, group: 'Suivre', hint: 'Ce qui sort quand' },
+  { path: 'stats', label: 'Statistiques', Icon: BarChart3, group: 'Suivre', hint: 'Ton rythme de publication' },
+  { path: 'ameliorations', label: 'Améliorations', Icon: MessageSquarePlus, group: 'Suivre', hint: 'Tes remarques sur l’app' },
 ] as const;
 export const labelOf = (top: string) => (top === 'settings' ? 'Paramètres' : top === 'fond' ? 'Réglage du fond' : NAV.find((n) => n.path === top)?.label ?? 'Accueil');
 
@@ -143,12 +143,25 @@ export function Dock({ top, onCapture, onMore }: { top: string; onCapture: () =>
   );
 }
 
+const MORE_GROUPS: [string, string[]][] = [
+  ['Écrire', ['bac', 'atelier']],
+  ['Ressources', ['docs', 'articles', 'films', 'formats']],
+  ['Suivre', ['planning', 'stats', 'ameliorations']],
+];
 export function MoreSheet({ onClose }: { onClose: () => void }) {
   return (
     <div className="more-sheet" onClick={onClose}>
-      <div className="more-inner">
-        {NAV.filter((n) => !['', 'creer', 'ideas'].includes(n.path)).map(({ path, label, Icon }) => <a key={path} href={`#/${path}`}><Icon size={19} strokeWidth={1.7} />{label}</a>)}
-        <a href="#/settings"><Settings size={19} strokeWidth={1.7} />Paramètres</a>
+      <div className="more-inner more-grouped">
+        {MORE_GROUPS.map(([g, paths]) => (
+          <section key={g}>
+            <span className="more-group">{g}</span>
+            {paths.map((p) => NAV.find((n) => n.path === p)).filter(Boolean).map((n) => {
+              const { path, label, Icon } = n!; const hint = (n as { hint?: string }).hint;
+              return <a key={path} href={`#/${path}`}><Icon size={18} strokeWidth={1.7} /><span><b>{label}</b>{hint && <small>{hint}</small>}</span></a>;
+            })}
+          </section>
+        ))}
+        <a className="more-settings" href="#/settings"><Settings size={17} strokeWidth={1.7} /><span><b>Paramètres</b><small>IA, synchro, sauvegardes</small></span></a>
       </div>
     </div>
   );

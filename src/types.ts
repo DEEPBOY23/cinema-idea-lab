@@ -193,4 +193,5 @@ export interface Remark {
   id: string; kind: 'idee' | 'gene' | 'bug'; text: string; page: string;
   status: 'open' | 'done'; at: number; updatedAt: number;
   photos?: string[]; // JPEG réduits (data URL)
+  doneBy?: 'claude' | 'moi'; doneAt?: number;
 }

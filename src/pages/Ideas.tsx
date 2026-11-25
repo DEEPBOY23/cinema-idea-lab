@@ -98,8 +98,8 @@ export default function Ideas() {
         <IdeaBoard list={list} all={ideas} formats={formats} sources={sources} />
       ) : <Empty>Aucune idée ne correspond. Capture une observation depuis l’accueil ou crée une idée.</Empty>}
       <p className="legend tiny muted" style={{ marginTop: 16 }}>
-        <span><i style={{ background: '#d38d5c' }} />À tourner</span><span><i style={{ background: '#8aa3b8' }} />À finir / à filmer</span><span><i style={{ background: '#a99cb8' }} />Plus tard</span>
-        <span><i style={{ background: '#7f9c9a' }} />À peine commencée</span><span><i style={{ background: '#c2b48a' }} />En partie</span><span><i style={{ background: '#93ab8e' }} />Bien avancée / filmée</span>
+        <span><i style={{ background: '#e08a52' }} />À tourner</span><span><i style={{ background: '#6e9fd0' }} />À finir / à filmer</span><span><i style={{ background: '#a487d6' }} />Plus tard</span>
+        <span><i style={{ background: '#5aa8a0' }} />À peine commencée</span><span><i style={{ background: '#d9b24f' }} />En partie</span><span><i style={{ background: '#84b86c' }} />Bien avancée / filmée</span>
       </p>
     </div>
   );

@@ -69,6 +69,7 @@ try {
     ['27-fiche-a-filmer', '#/ideas/sib1'],
     ['05c-idees-a-filmer', '#/ideas', '.stage-tabs button:nth-child(2)'],
     ['05d-idees-nuages', '#/ideas', '.stage-tabs button:nth-child(1)'],
+    ['28-menu-plus', '#/', '.tabbar > button:last-of-type'],
     ['05e-tiroir-variantes', '#/ideas', '.ic-drawer-btn'],
     ['01-accueil', '#/'],
     ['02-bac-a-idees', '#/bac'],
@@ -104,11 +105,11 @@ try {
       await page.reload({ waitUntil: 'networkidle0' }); // relit les paramètres de l'URL (mode de l'atelier)
       await new Promise((r) => setTimeout(r, 600));
       await page.evaluate(() => {
-        document.querySelectorAll('details').forEach((d) => { d.open = true; });
+        document.querySelectorAll('details:not(.manual-ai)').forEach((d) => { d.open = true; });
         window.scrollTo(0, 0);
       });
       if (FULL) await page.addStyleTag({ content: '.tabbar{position:static!important;margin:16px 12px} .main{padding-bottom:16px!important} .topbar-wrap{position:static!important}' });
-      if (click) { await page.click(click); await new Promise((r) => setTimeout(r, 400)); }
+      if (click) { await page.click(click).catch(() => {}); await new Promise((r) => setTimeout(r, 400)); }
       await new Promise((r) => setTimeout(r, 1200));
       cur = `${device} ${name}`;
       if (CHECK) {

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { Dictate, useAIProvider } from '../components/ui';
 import { useMemory } from '../components/assist';
-import { createIdea } from '../lib/actions';
+import { createIdea, updateIdea } from '../lib/actions';
+import { db } from '../db';
 import { go } from '../hooks';
 import { detectSeed, SEED_LABEL, generateFromSeed, moreAngles, generatedToIdea, distinctTitle, type GeneratedIdea } from '../lib/create';
 import { addJournal } from '../lib/actions';
@@ -9,6 +10,7 @@ import { searchLinks } from '../lib/prompts';
 
 const DRAFT = 'cil.create.draft';
 const RESULTS = 'cil.create.results';
+const BATCH = 'cil.create.batch'; // idées gardées depuis la même génération : la principale + ses variantes
 const load = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const save = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } };
 
@@ -37,6 +39,7 @@ export default function Create() {
     try {
       const r = await generateFromSeed(seed.trim(), memory, abort.current.signal);
       setEditing(false);
+      save(BATCH, { main: '', ids: [] });
       if (!r.length) setErr('L’assistant n’a rien proposé. Reformule ou ajoute un détail (film, plan, scène).');
       setIdeasSaved(r);
     } catch (e: any) { setErr(e?.name === 'AbortError' ? '' : (e?.message ?? String(e))); }
@@ -90,6 +93,22 @@ export default function Create() {
   );
 }
 
+/** Range les idées gardées d'une même génération : une principale, les autres en variantes.
+ *  La première « développée » devient la principale ; les « plus tard » s'y rattachent. */
+async function linkVariant(id: string, developed: boolean) {
+  const b = load<{ main: string; ids: string[] }>(BATCH, { main: '', ids: [] });
+  const mainIdea = b.main ? await db.ideas.get(b.main) : undefined;
+  const main = mainIdea && !mainIdea.deletedAt ? mainIdea : undefined;
+  const promote = async () => {
+    await updateIdea(id, { parentId: undefined });
+    for (const o of b.ids) if (o !== id) await updateIdea(o, { parentId: id });
+    save(BATCH, { main: id, ids: [...b.ids, id] });
+  };
+  if (!main || (developed && (main.paused || main.importance === 'plus-tard'))) return promote();
+  await updateIdea(id, { parentId: main.id });
+  save(BATCH, { main: main.id, ids: [...b.ids, id] });
+}
+
 function GenCard({ g, seed, onChange, onKept, memory }: { g: GeneratedIdea; seed: string; onChange: (g: GeneratedIdea) => void; onKept: () => void; memory: ReturnType<typeof useMemory> }) {
   const [chosen, setChosen] = useState<number[]>([0]);
   const [busy, setBusy] = useState('');
@@ -112,6 +131,7 @@ function GenCard({ g, seed, onChange, onKept, memory }: { g: GeneratedIdea; seed
     if (!open) { data.paused = true; data.priority = 3; }
     const id = await createIdea(data);
     if (!open) await addJournal('Gardée pour plus tard depuis « Créer » (en pause).', id);
+    await linkVariant(id, open);
     onKept();
     if (open) go(`ideas/${id}`);
   };
@@ -168,7 +188,7 @@ function GenCard({ g, seed, onChange, onKept, memory }: { g: GeneratedIdea; seed
       <div className="row wrap" style={{ marginTop: 12 }}>
         <button className="btn primary" disabled={!!busy} onClick={() => keep(true)}>Garder et développer</button>
         <button className="btn" disabled={!!busy} onClick={() => keep(false)}>Garder pour plus tard</button>
-        <span className="tiny muted">Devient une fiche d’idée avec sa structure, ses formats et son estimation. « Plus tard » la met en pause, avec l’étiquette ⏸ dans ta liste.</span>
+        <span className="tiny muted">Devient une fiche d’idée avec sa structure, ses formats et son estimation. Plusieurs idées gardées d’une même génération sont rangées ensemble : la première est l’idée principale, les autres ses variantes.</span>
       </div>
     </div>
   );

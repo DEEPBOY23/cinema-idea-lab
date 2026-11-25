@@ -176,7 +176,7 @@ export default function IdeaDetail({ id }: { id: string }) {
 
         </> },
         { title: 'Structure', hint: 'Hook, intro, angles, contradiction, conclusion : l’IA complète.', body: <>
-      <Section title={`Structure narrative${idea.structure.length ? ` · ${totalSec} s` : ''}`} open={idea.structure.length > 0}>
+      <Section title={`Structure narrative${idea.structure.length ? ` · ${totalSec} sec` : ''}`} open={idea.structure.length > 0}>
         <PostStructureAI idea={idea} memory={memory} fmt={fmt} setBeats={setBeats} />
         <StructureEditor idea={idea} beats={idea.structure} setBeats={setBeats} fmt={fmt} target={target} total={totalSec} ctx={ctx} />
       </Section>
@@ -328,7 +328,7 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
       {local.map((b, i) => (
         <div key={b.id} className={`beat ${b.weak ? 'weak' : ''} ${b.validatedAt ? 'validated' : ''}`}>
           <input value={b.label} onChange={(e) => edit(i, { label: e.target.value })} onBlur={() => commit(local)} />
-          <label className="sec-input" title="Durée de ce temps fort, en secondes"><input type="number" min={0} value={b.seconds} onChange={(e) => edit(i, { seconds: Number(e.target.value) })} onBlur={() => commit(local)} aria-label="Durée en secondes" /><span>s</span></label>
+          <label className="sec-input" title="Durée de ce temps fort, en secondes"><input type="number" min={0} value={b.seconds} onChange={(e) => edit(i, { seconds: Number(e.target.value) })} onBlur={() => commit(local)} aria-label="Durée en secondes" /><span>sec</span></label>
           <div className="row">
             <AiBtn icon label="✦" title="Retravailler ce temps fort avec l’IA" run={async () => { const t = await reworkText(`le temps fort « ${b.label} » (${b.seconds} s)`, b.content, ctx, 'Une intention et ce qu’on montre, en 1 à 3 phrases.'); commit(local.map((x, j) => (j === i ? { ...x, content: t, weak: false } : x))); }} />
             <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Monter">↑</button>
@@ -336,7 +336,7 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
             <button className={`chip ${b.weak ? 'on' : ''}`} onClick={() => commit(local.map((x, j) => (j === i ? { ...x, weak: !x.weak } : x)))} title="Marquer comme partie faible à améliorer">faible</button>
             <button className="icon-btn" onClick={() => commit(local.filter((_, j) => j !== i))} aria-label="Supprimer">✕</button>
           </div>
-          <textarea rows={2} value={b.content} placeholder="Intention / contenu de ce temps fort" onChange={(e) => edit(i, { content: e.target.value })} onBlur={() => commit(local)} />
+          <textarea className="beat-text" rows={Math.max(4, Math.ceil(b.content.length / 34) + 1)} value={b.content} placeholder="Intention / contenu de ce temps fort" onChange={(e) => edit(i, { content: e.target.value })} onBlur={() => commit(local)} />
           <div className="beat-validate">
             {b.validatedAt
               ? <><span className="tiny">✓ Validé le {stamp(b.validatedAt)}</span><button className="link-btn tiny" onClick={() => commit(local.map((x, j) => (j === i ? { ...x, validatedAt: undefined } : x)))}>annuler</button></>
@@ -347,7 +347,7 @@ function StructureEditor({ idea, beats, setBeats, fmt, target, total, ctx }: { i
       <div className="row wrap" style={{ marginTop: 8 }}>
         <button className="btn sm" onClick={() => commit([...local, { id: uid(), label: 'Nouveau temps fort', seconds: 8, content: '' }])}>+ Temps fort</button>
         {local.length > 0 && <span className="small muted">{local.filter((b) => b.validatedAt).length}/{local.length} validés · </span>}
-        <span className="small muted">Total {total} s{target ? ` · cible ≈ ${target} s` : ''}{fmt ? ` (format ${fmt.minSec}–${fmt.maxSec} s)` : ''}</span>
+        <span className="small muted">Total {total} sec{target ? ` · cible ≈ ${target} sec` : ''}{fmt ? ` (format ${fmt.minSec}–${fmt.maxSec} sec)` : ''}</span>
         <span className="spacer" />
         {local.length > 0 && statusRank(idea.status) < statusRank('structure') && (
           <button className="btn sm primary" onClick={async () => { await snapshot('ideas', idea.id, 'structure', JSON.stringify(local), 'manual'); await setStatus(idea, 'structure'); }}>Valider la structure</button>
@@ -600,7 +600,7 @@ function ScriptTabs({ idea, ctx, target, wpm }: { idea: Idea; ctx: any; target?:
           <label className="row small" style={{ marginTop: 8 }}><input type="checkbox" checked={!!idea.scriptReviewed} disabled={!idea.script.trim()} onChange={(e) => updateIdea(idea.id, { scriptReviewed: e.target.checked })} /> Script relu et finalisé</label>
         </>
       )}
-      <p className="muted small" style={{ marginTop: 6 }}>{wordCount(cur)} mots · ≈ {oralSeconds(cur, wpm)} s à l’oral ({wpm} mots/min){target ? ` · cible ${target} s` : ''}</p>
+      <p className="muted small" style={{ marginTop: 6 }}>{wordCount(cur)} mots · ≈ {oralSeconds(cur, wpm)} sec à l’oral ({wpm} mots/min){target ? ` · cible ${target} sec` : ''}</p>
     </div>
   );
 }

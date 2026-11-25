@@ -13,17 +13,55 @@ import { toast } from '../lib/toast';
 
 const STEP_NAMES = ['L’idée', 'Documentation', 'Angle', 'Structure', 'Script', 'Finaliser'];
 const COLORS: Record<string, string> = {
-  tourner: '#d38d5c', finir: '#8aa3b8', 'plus-tard': '#a99cb8',
-  debut: '#7f9c9a', partiel: '#c2b48a', avance: '#93ab8e', ready: '#8aa3b8', filmed: '#93ab8e',
+  tourner: '#e08a52', finir: '#6e9fd0', 'plus-tard': '#a487d6',
+  debut: '#5aa8a0', partiel: '#d9b24f', avance: '#84b86c', ready: '#6e9fd0', filmed: '#84b86c',
 };
 
-/** Appui long (≈ 0,5 s) sans déclencher le clic. */
-function useLongPress(onLong: () => void) {
-  const t = useRef<number | null>(null);
+interface Ghost { title: string; x: number; y: number; over: string | null }
+interface BoardCtl { menu: (i: Idea) => void; drop: (i: Idea, targetId: string) => void; ghost: (g: Ghost | null) => void; lift: (l: Lift | null) => void }
+type Lift = { id: string; mode: 'menu' | 'drag' };
+// Paliers de l'appui long : 0,5 s = menu (standard iOS/Android), 1 s = déplacer.
+// Assez écartés pour être distincts au doigt, assez courts pour rester fluides.
+const MENU_MS = 500;
+const DRAG_MS = 1000;
+
+// Pendant un glisser, on bloque le défilement de la page (iOS).
+const dragState = { active: false };
+if (typeof document !== 'undefined') document.addEventListener('touchmove', (e) => { if (dragState.active) e.preventDefault(); }, { passive: false });
+
+/** Appui long en deux paliers, chacun signalé par une vibration et un changement visuel :
+ *  0,5 s → relâcher ouvre le menu ; 1 s → la carte se soulève et peut être glissée sur une autre idée.
+ *  Bouger avant 1 s annule (c'est un défilement) ; relâcher après 1 s sans bouger ouvre aussi le menu. */
+function usePressDrag(idea: Idea, ctl: BoardCtl) {
   const fired = useRef(false);
-  const start = () => { fired.current = false; t.current = window.setTimeout(() => { fired.current = true; onLong(); }, 520); };
-  const stop = () => { if (t.current) clearTimeout(t.current); t.current = null; };
-  return { fired, handlers: { onPointerDown: start, onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop, onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); stop(); fired.current = true; onLong(); } } };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button) return;
+    fired.current = false;
+    const sx = e.clientX, sy = e.clientY;
+    let dragging = false; let over: string | null = null;
+    let canDrag = false;
+    const t1 = window.setTimeout(() => { fired.current = true; dragState.active = true; ctl.lift({ id: idea.id, mode: 'menu' }); navigator.vibrate?.(10); }, MENU_MS);
+    const t2 = window.setTimeout(() => { canDrag = true; ctl.lift({ id: idea.id, mode: 'drag' }); navigator.vibrate?.([12, 60, 12]); }, DRAG_MS);
+    const move = (ev: PointerEvent) => {
+      const d = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+      if (!canDrag) { if (d > 10) { cleanup(); fired.current = false; } return; }
+      if (!dragging && d > 8) dragging = true;
+      if (!dragging) return;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-drop-id]') as HTMLElement | null;
+      over = el?.dataset.dropId && el.dataset.dropId !== idea.id ? el.dataset.dropId : null;
+      ctl.ghost({ title: idea.title, x: ev.clientX, y: ev.clientY, over });
+    };
+    const up = () => { const was = fired.current; cleanup(); if (!was) return; if (!dragging) ctl.menu(idea); else if (over) ctl.drop(idea, over); };
+    const cancel = () => { cleanup(); fired.current = false; };
+    function cleanup() {
+      clearTimeout(t1); clearTimeout(t2); dragState.active = false;
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
+      ctl.ghost(null); ctl.lift(null);
+    }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
+  };
+  const onContextMenu = (e: React.MouseEvent) => { e.preventDefault(); if ((e.nativeEvent as PointerEvent).pointerType === 'mouse' || !('ontouchstart' in window)) { fired.current = true; ctl.menu(idea); } };
+  return { fired, handlers: { onPointerDown, onContextMenu } };
 }
 
 /** Bibliothèque : une carte par idée principale, ses variantes rangées dans un tiroir. */
@@ -32,9 +70,22 @@ export function IdeaBoard({ list, all, formats, sources }: { list: Idea[]; all: 
   const auto = useMemo(() => variantFamilies(all), [all]);
   const fams = useMemo(() => groupFamilies(list, auto, (i) => prog.get(i.id)?.pct ?? 0), [list, auto, prog]);
   const [menu, setMenu] = useState<Idea | null>(null);
+  const [ghost, setGhost] = useState<Ghost | null>(null);
+  const [lift, setLift] = useState<Lift | null>(null);
+  const lifted = lift?.id ?? null;
+  const drop = async (i: Idea, targetId: string) => {
+    const target = all.find((x) => x.id === targetId);
+    if (!target) return;
+    await updateIdea(i.id, { parentId: targetId });
+    for (const c of all) if (c.parentId === i.id) await updateIdea(c.id, { parentId: targetId });
+    toast(`« ${i.title} » rangée comme variante de « ${target.title} ».`);
+  };
+  const ctl: BoardCtl = { menu: setMenu, drop, ghost: setGhost, lift: setLift };
   return (
     <>
-      <div className="board">{fams.map((f) => <FamilyCard key={f.head.id} fam={f} prog={prog} formats={formats} onMenu={setMenu} />)}</div>
+      <div className={`board ${lift?.mode === 'drag' ? 'dragging' : ''}`}>{fams.map((f) => <FamilyCard key={f.head.id} fam={f} prog={prog} formats={formats} ctl={ctl} lifted={lifted} lift={lift} over={ghost?.over ?? null} />)}</div>
+      {ghost && <div className="drag-ghost" style={{ left: ghost.x, top: ghost.y }}>{ghost.over ? '↳ ' : ''}{ghost.title}</div>}
+      {lift && !ghost && <p className={`drag-hint tiny ${lift.mode}`}>{lift.mode === 'menu' ? 'Relâche pour le menu · garde appuyé pour déplacer' : 'Glisse sur une autre idée pour en faire une variante'}</p>}
       {menu && <IdeaMenu idea={menu} all={all} onClose={() => setMenu(null)} />}
     </>
   );
@@ -48,11 +99,11 @@ function colorOf(i: Idea, pct: number) {
   return COLORS[bandOf(pct)];
 }
 
-function FamilyCard({ fam, prog, formats, onMenu }: { fam: Family<Idea>; prog: Map<string, { pct: number; todo: string[] }>; formats: Format[]; onMenu: (i: Idea) => void }) {
+function FamilyCard({ fam, prog, formats, ctl, lifted, lift, over }: { fam: Family<Idea>; prog: Map<string, { pct: number; todo: string[] }>; formats: Format[]; ctl: BoardCtl; lifted: string | null; lift: Lift | null; over: string | null }) {
   const i = fam.head;
   const p = prog.get(i.id) ?? { pct: 0, todo: [] };
   const [open, setOpen] = useState(false);
-  const lp = useLongPress(() => onMenu(i));
+  const lp = usePressDrag(i, ctl);
   const st = ideaStage(i);
   const step = stepOf(i);
   const color = colorOf(i, p.pct);
@@ -60,7 +111,7 @@ function FamilyCard({ fam, prog, formats, onMenu }: { fam: Family<Idea>; prog: M
   const Icon = st === 'filmed' ? CircleCheck : st === 'ready' ? Clapperboard : Lightbulb;
   const tag = st === 'ready' ? 'À filmer' : st === 'filmed' ? 'Filmée' : i.importance ? IMPORTANCE[i.importance] : i.paused ? 'Gardée pour plus tard' : BAND_LABEL[bandOf(p.pct)];
   return (
-    <div className={`idea-card ${open ? 'open' : ''}`} style={{ '--c': color } as React.CSSProperties}>
+    <div data-drop-id={i.id} className={`idea-card ${open ? 'open' : ''} ${lifted === i.id ? `lifted ${lift?.mode ?? ''}` : ''} ${over === i.id ? 'drop-over' : ''}`} style={{ '--c': color } as React.CSSProperties}>
       <div className="ic-main" role="button" tabIndex={0} onClick={() => { if (lp.fired.current) { lp.fired.current = false; return; } go(`ideas/${i.id}`); }} {...lp.handlers}>
         <div className="ic-top">
           <span className="ic-icon"><Icon size={18} strokeWidth={1.8} /></span>
@@ -81,19 +132,19 @@ function FamilyCard({ fam, prog, formats, onMenu }: { fam: Family<Idea>; prog: M
             <Layers size={14} /> {fam.children.length} variante{fam.children.length > 1 ? 's' : ''}{fam.children.some((c) => c.paused || c.importance === 'plus-tard') ? ' · dont plus tard' : ''}
             <ChevronDown size={15} style={{ marginLeft: 'auto', transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} />
           </button>
-          {open && <div className="ic-drawer">{fam.children.map((c, k) => <VariantRow key={c.id} idea={c} n={k + 2} pct={prog.get(c.id)?.pct ?? 0} onMenu={onMenu} />)}</div>}
+          {open && <div className="ic-drawer">{fam.children.map((c, k) => <VariantRow key={c.id} idea={c} n={k + 2} pct={prog.get(c.id)?.pct ?? 0} ctl={ctl} lifted={lifted} lift={lift} />)}</div>}
         </>
       )}
     </div>
   );
 }
 
-function VariantRow({ idea, n, pct, onMenu }: { idea: Idea; n: number; pct: number; onMenu: (i: Idea) => void }) {
-  const lp = useLongPress(() => onMenu(idea));
+function VariantRow({ idea, n, pct, ctl, lifted, lift }: { idea: Idea; n: number; pct: number; ctl: BoardCtl; lifted: string | null; lift: Lift | null }) {
+  const lp = usePressDrag(idea, ctl);
   const later = idea.paused || idea.importance === 'plus-tard';
   const fresh = idea.lastActivityAt - idea.createdAt < 60_000 && !idea.guideStep;
   return (
-    <div className="ic-variant" role="button" tabIndex={0} style={{ '--c': colorOf(idea, pct) } as React.CSSProperties} onClick={() => { if (lp.fired.current) { lp.fired.current = false; return; } go(`ideas/${idea.id}`); }} {...lp.handlers}>
+    <div className={`ic-variant ${lifted === idea.id ? `lifted ${lift?.mode ?? ''}` : ''}`} role="button" tabIndex={0} style={{ '--c': colorOf(idea, pct) } as React.CSSProperties} onClick={() => { if (lp.fired.current) { lp.fired.current = false; return; } go(`ideas/${idea.id}`); }} {...lp.handlers}>
       <span className="ic-vnum">V{n}</span>
       <span className="ic-vtitle">{idea.title}<small>{later ? 'gardée pour plus tard' : idea.importance ? IMPORTANCE[idea.importance] : fresh ? 'pas encore commencée' : 'commencée'} · {pct} %</small></span>
     </div>

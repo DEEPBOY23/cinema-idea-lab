@@ -38,7 +38,7 @@ export default function Recap({ id }: { id: string }) {
           <div style={{ flex: '1 1 260px', minWidth: 0 }}>
             <span className={`chip recap-stage-${stage}`}><i className={`sdot sdot-${stage}`} />{stage === 'filmed' ? 'Filmée' : stage === 'ready' ? 'À filmer' : 'En cours'}</span>
             <h1 style={{ margin: '8px 0 4px' }}>{idea.title}</h1>
-            <p className="small muted" style={{ margin: 0 }}>{[fmt && `${fmt.name} (${fmt.minSec}–${fmt.maxSec} s)`, iWorks.map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}`).join(', ')].filter(Boolean).join(' · ')}</p>
+            <p className="small muted" style={{ margin: 0 }}>{[fmt && `${fmt.name} (${fmt.minSec}–${fmt.maxSec} sec)`, iWorks.map((w) => `${w.title}${w.year ? ` (${w.year})` : ''}`).join(', ')].filter(Boolean).join(' · ')}</p>
           </div>
           <div><b style={{ fontSize: '1.3rem' }}>≈ {e.total} h</b><div className="tiny muted">doc {e.doc} h · tournage {e.shoot} h · montage {e.edit} h</div></div>
         </div>
@@ -48,9 +48,9 @@ export default function Recap({ id }: { id: string }) {
         {idea.observation && <RecapBlock title="Observation de départ"><p>{idea.observation}</p></RecapBlock>}
 
         {idea.structure.length > 0 && (
-          <RecapBlock title={`Structure · ${total} s`}>
+          <RecapBlock title={`Structure · ${total} sec`}>
             {idea.structure.map((b) => (
-              <div key={b.id} className="recap-beat"><b>{b.label}</b><span className="tiny muted">{b.seconds} s</span><span>{b.content}</span></div>
+              <div key={b.id} className="recap-beat"><b>{b.label}</b><span className="tiny muted">{b.seconds} sec</span><span>{b.content}</span></div>
             ))}
           </RecapBlock>
         )}

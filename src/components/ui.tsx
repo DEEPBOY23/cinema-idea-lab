@@ -192,6 +192,7 @@ export function PromptBox({ prompt, mode, ideaId, input, onImport, importLabel }
   const [response, setResponse] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
   const [show, setShow] = useState(false);
+  const [manual, setManual] = useState(false);
   const provider = useAIProvider();
   const apiOn = provider !== 'none';
   const [busy, setBusy] = useState(false);
@@ -219,26 +220,32 @@ export function PromptBox({ prompt, mode, ideaId, input, onImport, importLabel }
   };
   return (
     <div className="promptbox">
-      <div className="row wrap">
-        <CopyButton text={prompt} label="Copier le prompt" />
-        <a className="btn sm ghost" href="https://gemini.google.com/app" target="_blank" rel="noreferrer">Ouvrir Gemini ↗</a>
-        <a className="btn sm ghost" href="https://chatgpt.com/" target="_blank" rel="noreferrer">Ouvrir ChatGPT ↗</a>
-        <a className="btn sm ghost" href="https://claude.ai/new" target="_blank" rel="noreferrer">Ouvrir Claude ↗</a>
-        <button className="btn sm ghost" type="button" onClick={() => setShow(!show)}>{show ? 'Masquer' : 'Voir'} le prompt</button>
-        {apiOn && (busy
-          ? <button className="btn sm" type="button" onClick={() => abort.current?.abort()}>Annuler l’envoi…</button>
-          : <button className="btn sm primary" type="button" onClick={sendToClaude} title="Envoie ce prompt à l’IA branchée dans Paramètres (facturé à l’usage par le fournisseur)">Demander à {providerLabel(provider).split(' (')[0]}</button>)}
-      </div>
+      {apiOn && (
+        <div className="row wrap">
+          {busy ? <button className="btn sm" type="button" onClick={() => abort.current?.abort()}>Annuler l’envoi…</button>
+            : <button className="btn sm primary" type="button" onClick={sendToClaude} title="Envoie ce prompt à l’IA branchée dans Paramètres">✦ Demander à {providerLabel(provider).split(' (')[0]}</button>}
+        </div>
+      )}
       {apiMsg && <p className="small muted">{apiMsg}</p>}
-      {show && <pre className="prompt">{prompt}</pre>}
-      <label className="field">
-        <span className="field-label">Réponse de l’IA {apiOn ? '' : '(colle-la ici)'}</span>
+      <details className="manual-ai" open={!apiOn || undefined} onToggle={(e) => setManual((e.target as HTMLDetailsElement).open)}>
+        <summary className="small">{apiOn ? 'Ou avec une autre IA (copier-coller)' : 'Avec une IA en copier-coller'}</summary>
+        <div className="row wrap" style={{ marginTop: 8 }}>
+          <CopyButton text={prompt} label="1. Copier le prompt" />
+          <a className="btn sm ghost" href="https://gemini.google.com/app" target="_blank" rel="noreferrer">2. Gemini ↗</a>
+          <a className="btn sm ghost" href="https://chatgpt.com/" target="_blank" rel="noreferrer">ChatGPT ↗</a>
+          <a className="btn sm ghost" href="https://claude.ai/new" target="_blank" rel="noreferrer">Claude ↗</a>
+          <button className="btn sm ghost" type="button" onClick={() => setShow(!show)}>{show ? 'Masquer' : 'Voir'} le prompt</button>
+        </div>
+        {show && <pre className="prompt">{prompt}</pre>}
+      </details>
+      {(response || manual || !apiOn) && <><label className="field">
+        <span className="field-label">Réponse de l’IA {manual || !apiOn ? '(3. colle-la ici)' : ''}</span>
         <textarea rows={5} value={response} onChange={(e) => setResponse(e.target.value)} placeholder="Colle la réponse, puis enregistre. Tu pourras choisir, modifier ou rejeter chaque piste." />
       </label>
       <div className="row">
         <button className="btn sm primary" type="button" disabled={!response.trim()} onClick={saveResp}>{importLabel ?? 'Enregistrer la réponse'}</button>
         {saved && <span className="muted small">Enregistré dans l’historique de l’atelier.</span>}
-      </div>
+      </div></>}
     </div>
   );
 }

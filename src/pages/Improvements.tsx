@@ -6,6 +6,9 @@ import { NAV } from '../components/shell';
 import { toast } from '../lib/toast';
 import type { Remark } from '../types';
 import { PhotoPicker, PhotoStrip } from '../components/photos';
+import { HANDLED_BY_CLAUDE } from '../lib/handledRemarks';
+
+const when = (t: number) => new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const KINDS: Record<Remark['kind'], string> = { idee: '💡 Idée', gene: '😕 Gêne', bug: '🐞 Bug' };
 const PAGES = ['Général', ...NAV.map((n) => n.label), 'Fiche d’une idée', 'Paramètres'];
@@ -21,6 +24,12 @@ export default function Improvements() {
     Promise.all(withPhotos.map((r) => db.remarks.update(r.id, { photos: [...r.photos!], updatedAt: Date.now() })))
       .then(() => { try { localStorage.setItem('cil.remarks.inlinePhotos', '1'); } catch { /* */ } });
   }, [remarks.length]);
+  // Remarques traitées par Claude (liste publiée avec l'app) : passées en « Traitée » automatiquement.
+  useEffect(() => {
+    const now = Date.now();
+    remarks.filter((r) => r.status === 'open' && HANDLED_BY_CLAUDE[r.id])
+      .forEach((r) => db.remarks.update(r.id, { status: 'done', doneBy: 'claude', doneAt: now, updatedAt: now }));
+  }, [remarks]);
   const [text, setText] = useState('');
   const [kind, setKind] = useState<Remark['kind']>('idee');
   const [page, setPage] = useState('Général');
@@ -69,7 +78,7 @@ export default function Improvements() {
 
       {done.length > 0 && (
         <details className="section" style={{ marginTop: 20 }}>
-          <summary>Traitées ({done.length})</summary>
+          <summary>Traitées ({done.length}) · grisées</summary>
           <div className="section-body"><ul className="list">{done.map((r) => <RemarkRow key={r.id} r={r} />)}</ul></div>
         </details>
       )}
@@ -78,9 +87,9 @@ export default function Improvements() {
 }
 
 function RemarkRow({ r }: { r: Remark }) {
-  const toggle = () => db.remarks.update(r.id, { status: r.status === 'open' ? 'done' : 'open', updatedAt: Date.now() });
+  const toggle = () => db.remarks.update(r.id, r.status === 'open' ? { status: 'done', doneBy: 'moi', doneAt: Date.now(), updatedAt: Date.now() } : { status: 'open', doneBy: undefined, doneAt: undefined, updatedAt: Date.now() });
   return (
-    <li style={{ cursor: 'default' }}>
+    <li style={{ cursor: 'default' }} className={r.status === 'done' ? 'remark-done' : ''}>
       <div className="row between" style={{ alignItems: 'flex-start' }}>
         <span className="small" style={{ flex: 1, textDecoration: r.status === 'done' ? 'line-through' : undefined }}>{r.text}</span>
         <span className="row" style={{ flex: 'none' }}>
@@ -89,7 +98,7 @@ function RemarkRow({ r }: { r: Remark }) {
         </span>
       </div>
       <PhotoStrip photos={r.photos} name={`remarque-${new Date(r.at).toISOString().slice(0, 10)}`} />
-      <div className="item-meta"><span>{KINDS[r.kind]}</span><span>{r.page}</span><span>{new Date(r.at).toLocaleDateString('fr-FR')}</span></div>
+      <div className="item-meta"><span>{KINDS[r.kind]}</span><span>{r.page}</span><span>Écrite le {when(r.at)}</span>{r.status === 'done' && <span>{r.doneBy === 'claude' ? '✓ Traitée par Claude' : '✓ Faite'}{r.doneAt ? ` le ${when(r.doneAt)}` : ''}</span>}</div>
     </li>
   );
 }
